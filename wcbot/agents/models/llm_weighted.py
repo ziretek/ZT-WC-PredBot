@@ -92,6 +92,44 @@ Respond in JSON format with exactly these fields:
             "key_factors": llm_resp.get("key_factors", []),
         }
 
+    async def answer_question(self, question: str) -> Optional[str]:
+        if not self.api_key:
+            return None
+        prompt = f"""You are a knowledgeable 2026 World Cup assistant. Answer concisely.
+
+Question: {question}
+
+Rules:
+- Answer in 2-3 sentences.
+- Only talk about the 2026 World Cup.
+- If you don't know the answer, say so — don't make things up.
+- Use plain text, not JSON."""
+
+        try:
+            if not self.http_client:
+                import httpx
+                self.http_client = httpx.AsyncClient(timeout=20.0)
+
+            resp = await self.http_client.post(
+                self.api_url,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.5,
+                    "max_tokens": 250,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            logger.warning(f"LLM Q&A failed: {e}")
+            return None
+
     def _fallback(self, home: str, away: str,
                   elo: dict, poisson: dict, gb: dict) -> dict:
         confidences = [

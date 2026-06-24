@@ -79,13 +79,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                    "competing", "in the tournament"]):
         return await handle_team_lookup(update, context, text)
     else:
-        await update.message.reply_markdown(
-            "I'm not sure what you mean. Try:\n"
-            "• \"Predict Brazil vs Argentina\"\n"
-            "• \"Who will win the World Cup?\"\n"
-            "• \"Which countries are in the World Cup?\"\n"
-            "• `/help` for commands"
-        )
+        engine: PredictionEngineAgent = context.bot_data.get("prediction_engine")
+        llm_answer = None
+        if engine and engine.llm:
+            llm_answer = await engine.llm.answer_question(text)
+        if llm_answer:
+            await update.message.reply_markdown(llm_answer)
+        else:
+            await update.message.reply_markdown(
+                "I'm not sure what you mean. Try:\n"
+                "• \"Predict Brazil vs Argentina\"\n"
+                "• \"Who will win the World Cup?\"\n"
+                "• \"Which countries are in the World Cup?\"\n"
+                "• `/help` for commands"
+            )
         return ASK_FOLLOWUP
 
 
