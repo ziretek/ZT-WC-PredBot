@@ -33,6 +33,7 @@ User profiles, prediction history, subscriptions, and leaderboard state are stor
 |---------|--------|-------------|
 | `/start` | Implemented | Create a user profile and show the model card |
 | `/predict <home> vs <away>` | Implemented | Predict a match when the ensemble is confident enough |
+| `/predict round of 32` | Implemented, API/LLM-dependent | Show live advancing teams or a Round of 32 outlook |
 | `/predictions` | Implemented | Show the stored prediction history for the user |
 | `/leaderboard` | Implemented | Show the stored leaderboard |
 | `/standings` | Implemented, API-dependent | Show standings when `SPORTS_API_KEY` is configured |
