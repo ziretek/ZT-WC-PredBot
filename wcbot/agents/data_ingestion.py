@@ -216,8 +216,14 @@ class DataIngestionAgent:
 
         groups = {}
         for entry in standings:
-            g = entry["group"]
-            groups.setdefault(g, []).append(entry)
+            normalized = self._normalize_standing_entry(entry)
+            if not normalized:
+                continue
+            groups.setdefault(normalized["group"], []).append(normalized)
+
+        if not groups:
+            logger.info("Standings data is available but not in World Cup group-table shape")
+            return []
 
         advancing = []
         for g in sorted(groups.keys()):
@@ -225,6 +231,42 @@ class DataIngestionAgent:
             advancing.extend(sorted_teams[:2])
 
         return sorted(advancing, key=lambda t: t["group"])
+
+    def _normalize_standing_entry(self, entry: dict) -> Optional[dict]:
+        group = entry.get("group") or entry.get("group_name")
+        if isinstance(group, dict):
+            group = group.get("name") or group.get("data", {}).get("name")
+
+        participant = entry.get("participant") or entry.get("team") or entry.get("participant_data")
+        name = entry.get("name") or entry.get("team_name")
+        if isinstance(participant, dict):
+            name = name or participant.get("name") or participant.get("data", {}).get("name")
+
+        points = entry.get("points")
+        goal_diff = entry.get("goal_diff", entry.get("goal_difference"))
+        result = entry.get("result")
+        if isinstance(result, dict):
+            points = points if points is not None else result.get("points")
+            goal_diff = goal_diff if goal_diff is not None else result.get("goal_difference", result.get("goal_diff"))
+
+        if not group or not name:
+            return None
+
+        try:
+            points = int(points or 0)
+        except (TypeError, ValueError):
+            points = 0
+        try:
+            goal_diff = int(goal_diff or 0)
+        except (TypeError, ValueError):
+            goal_diff = 0
+
+        return {
+            "group": str(group),
+            "name": str(name),
+            "points": points,
+            "goal_diff": goal_diff,
+        }
 
     def _get_cached(self, key: str, ttl: int = 30):
         entry = self._cache.get(key)
