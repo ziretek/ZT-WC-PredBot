@@ -290,11 +290,25 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_markdown(
-        "Chat mode ended. Use `/chat` to start again.",
-        reply_markup=ReplyKeyboardRemove(),
-    )
+    last_home = context.user_data.pop("last_home", None)
+    last_away = context.user_data.pop("last_away", None)
+
+    msg = "👋 *Chat mode ended.*\n\n"
+    if last_home and last_away:
+        msg += f"Last prediction: *{last_home} vs {last_away}*\n"
+        msg += "Come back anytime to dive deeper.\n\n"
+    msg += "Use `/chat` to start again."
+
+    await update.message.reply_markdown(msg, reply_markup=ReplyKeyboardRemove())
+    context.user_data.clear()
     return ConversationHandler.END
+
+
+async def cancel_global(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_markdown(
+        "No active chat to cancel.\n"
+        "Start one with `/chat`"
+    )
 
 
 def get_chat_conversation_handler():

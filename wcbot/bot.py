@@ -27,6 +27,7 @@ from wcbot.handlers import (
     track_handler,
     rtstatus_handler,
     get_chat_conversation_handler,
+    cancel_global,
 )
 
 logging.basicConfig(
@@ -76,6 +77,7 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("track", track_handler))
     app.add_handler(CommandHandler("rtstatus", rtstatus_handler))
     app.add_handler(get_chat_conversation_handler())
+    app.add_handler(CommandHandler("cancel", cancel_global))
     app.add_error_handler(error_handler)
 
     return app
