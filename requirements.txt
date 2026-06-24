@@ -1,4 +1,4 @@
-python-telegram-bot==20.8
+python-telegram-bot[webhooks]==20.8
 pydantic==2.5.3
 httpx==0.26.0
 python-dotenv==1.0.0
