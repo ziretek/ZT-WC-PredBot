@@ -6,6 +6,17 @@ from wcbot.agents.data_ingestion import DataIngestionAgent
 from wcbot.agents.prediction_engine import PredictionEngineAgent
 
 
+def _form_bar(elo_rating: float, baseline: float = 1500) -> str:
+    diff = (elo_rating - baseline) / 200.0
+    diff = max(-1, min(1, diff))
+    bars = int(abs(diff) * 8)
+    if diff > 0:
+        return "🟢" * bars + "⬜" * (8 - bars) + " (hot)"
+    elif diff < 0:
+        return "🔴" * bars + "⬜" * (8 - bars) + " (cold)"
+    return "⬜" * 8 + " (neutral)"
+
+
 async def match_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text[len("/match "):].strip()
     if not text or "vs" not in text:
@@ -26,18 +37,35 @@ async def match_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     h2h = await ingestion.fetch_head2head(home, away)
     prediction = await engine.predict(home, away)
 
+    home_rating = engine.elo.get_rating(home)
+    away_rating = engine.elo.get_rating(away)
+
+    if prediction.abstained:
+        verdict = f"🤷 Too close to call confidently."
+    else:
+        verdict = (
+            f"• Winner: *{prediction.winner}*\n"
+            f"• Score: {prediction.home_score}–{prediction.away_score}\n"
+            f"• Confidence: {prediction.confidence:.0%}\n"
+            f"• Model: `{prediction.model_version}`"
+        )
+
     msg = (
         f"📊 *{home} vs {away} — Match Dossier*\n\n"
+        f"*Elo Ratings:*\n"
+        f"• {home}: {home_rating:.0f}\n"
+        f"  Form: {_form_bar(home_rating)}\n"
+        f"• {away}: {away_rating:.0f}\n"
+        f"  Form: {_form_bar(away_rating)}\n\n"
         f"*Head-to-Head:*\n"
         f"• {home}: {h2h.get('team1_wins', 0)} wins\n"
         f"• {away}: {h2h.get('team2_wins', 0)} wins\n"
         f"• Draws: {h2h.get('draws', 0)}\n\n"
-        f"*AI Verdict:*\n"
-        f"• Winner: *{prediction.winner}*\n"
-        f"• Score: {prediction.home_score}-{prediction.away_score}\n"
-        f"• Confidence: {prediction.confidence:.0%}\n"
-        f"• Model: `{prediction.model_version}`\n\n"
-        f"*Analysis:*\n{prediction.reasoning}"
+        f"*AI Verdict:*\n{verdict}\n"
     )
 
+    if not prediction.abstained:
+        msg += f"\n*Analysis:*\n{prediction.reasoning}"
+
+    msg += f"\n\nUse `/value {home} vs {away}` to compare against market odds."
     await update.message.reply_markdown(msg)

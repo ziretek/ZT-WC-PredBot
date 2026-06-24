@@ -125,6 +125,78 @@ class DataIngestionAgent:
             logger.warning(f"Failed to fetch odds: {e}")
             return {}
 
+    async def fetch_recent_results(self, days: int = 365) -> list:
+        if not Config.SPORTS_API_KEY:
+            return []
+        cache_key = f"results:{days}"
+        cached = self._get_cached(cache_key, ttl=3600)
+        if cached:
+            return cached
+        try:
+            since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+            resp = await self._http_client.get(
+                "https://api.sportmonks.com/v3/football/fixtures",
+                params={
+                    "api_token": Config.SPORTS_API_KEY,
+                    "filters": f"starts_after:{since}",
+                    "include": "localTeam,visitorTeam",
+                    "per_page": 100,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", [])
+            results = []
+            for m in data:
+                status = m.get("status", "")
+                if status not in ("finished", "ft"):
+                    continue
+                home_team = m.get("localTeam", {}).get("data", {}).get("name", "")
+                away_team = m.get("visitorTeam", {}).get("data", {}).get("name", "")
+                scores = m.get("scores", {})
+                home_score = scores.get("localteam_score", 0)
+                away_score = scores.get("visitorteam_score", 0)
+                if home_team and away_team:
+                    results.append({
+                        "home": home_team, "away": away_team,
+                        "home_score": home_score, "away_score": away_score,
+                    })
+            self._set_cache(cache_key, results, ttl=3600)
+            logger.info(f"Fetched {len(results)} recent results")
+            return results
+        except Exception as e:
+            logger.warning(f"Failed to fetch results: {e}")
+            return []
+
+    async def fetch_injuries(self, team: str) -> list:
+        if not Config.SPORTS_API_KEY:
+            return []
+        cache_key = f"injuries:{team}"
+        cached = self._get_cached(cache_key, ttl=600)
+        if cached:
+            return cached
+        try:
+            resp = await self._http_client.get(
+                "https://api.sportmonks.com/v3/football/injuries",
+                params={
+                    "api_token": Config.SPORTS_API_KEY,
+                    "filters": f"team_name:{team}",
+                    "per_page": 20,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", [])
+            injuries = []
+            for inj in data:
+                injuries.append({
+                    "player": inj.get("player", {}).get("data", {}).get("name", "Unknown"),
+                    "type": inj.get("type", "injury"),
+                    "return_date": inj.get("return_date", "unknown"),
+                })
+            self._set_cache(cache_key, injuries, ttl=600)
+            return injuries
+        except Exception:
+            return []
+
     async def health_check(self) -> bool:
         if Config.SPORTS_API_KEY:
             try:

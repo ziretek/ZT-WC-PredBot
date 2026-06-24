@@ -78,6 +78,24 @@ class PredictionEngineAgent:
             calibration_timestamp=datetime.utcnow(),
         )
 
+    async def pre_train(self, ingestion=None):
+        if not ingestion:
+            logger.info("No ingestion agent — skipping pre-train")
+            return
+        logger.info("Pre-training on historical results...")
+        results = await ingestion.fetch_recent_results(days=365)
+        trained = 0
+        for m in results:
+            home, away = m["home"], m["away"]
+            known_teams = list(self.elo.ratings.keys())
+            if home not in known_teams or away not in known_teams:
+                continue
+            self.resolve_match(home, away, m["home_score"], m["away_score"])
+            trained += 1
+            if trained >= 200:
+                break
+        logger.info(f"Pre-trained on {trained} historical matches")
+
     def _should_abstain(self, winner: str, confidence: float, models_agreeing: int) -> bool:
         if winner == "Draw":
             return True

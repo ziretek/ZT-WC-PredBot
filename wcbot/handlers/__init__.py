@@ -13,6 +13,8 @@ from .feedback import feedback_handler
 from .settings import settings_handler
 from .help import help_handler
 from .track import track_handler, rtstatus_handler
+from .value import value_handler
+from .injuries import injuries_handler
 from .chat import get_chat_conversation_handler, cancel_global
 
 __all__ = [
@@ -33,6 +35,8 @@ __all__ = [
     "help_handler",
     "track_handler",
     "rtstatus_handler",
+    "value_handler",
+    "injuries_handler",
     "get_chat_conversation_handler",
     "cancel_global",
 ]

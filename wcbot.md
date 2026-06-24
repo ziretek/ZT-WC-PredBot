@@ -26,6 +26,8 @@ Entry-point Telegram bot for the 2026 World Cup AI Predictions system. Wields a 
 | `/lineups <match>` | Projected lineups + XI strength rating when available |
 | `/track <home> vs <away>` | Enable live real-time monitoring for a match |
 | `/rtstatus` | Show realtime engine status (matches tracked, odds monitored) |
+| `/value <home> vs <away>` | Model vs market odds comparison — find value picks |
+| `/injuries <team>` | List current injuries and suspensions for a team |
 | `/subscribe <team>` | Get push alerts: lineups, score changes, odds swings |
 | `/feedback <prediction_id> <correct/incorrect>` | Flag a prediction for model retraining |
 | `/settings` | Configure units, language, alert preferences, model verbosity |

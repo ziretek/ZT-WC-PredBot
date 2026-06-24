@@ -26,6 +26,8 @@ from wcbot.handlers import (
     help_handler,
     track_handler,
     rtstatus_handler,
+    value_handler,
+    injuries_handler,
     get_chat_conversation_handler,
     cancel_global,
 )
@@ -48,9 +50,13 @@ async def post_init(app: Application):
     app.bot_data["state_manager"] = state
     app.bot_data["realtime"] = realtime
 
-    if os.getenv("SPORTS_API_KEY") or os.getenv("ODDS_API_KEY"):
+    if Config.SPORTS_API_KEY:
+        await engine.pre_train(ingestion)
         await realtime.start()
-        logger.info("Realtime engine started (live data available)")
+        logger.info("Realtime engine + pre-training complete")
+    elif Config.ODDS_API_KEY:
+        await realtime.start()
+        logger.info("Realtime engine started (odds only)")
     else:
         logger.info("Realtime engine disabled (no API keys — predictions use built-in data)")
 
@@ -76,6 +82,8 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("help", help_handler))
     app.add_handler(CommandHandler("track", track_handler))
     app.add_handler(CommandHandler("rtstatus", rtstatus_handler))
+    app.add_handler(CommandHandler("value", value_handler))
+    app.add_handler(CommandHandler("injuries", injuries_handler))
     app.add_handler(get_chat_conversation_handler())
     app.add_handler(CommandHandler("cancel", cancel_global))
     app.add_error_handler(error_handler)
