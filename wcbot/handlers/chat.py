@@ -72,7 +72,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    text = text.replace("/predict", "").strip()
+    text = text.replace("/predict", "").replace("predict ", "").strip()
 
     if " vs " not in text:
         await update.message.reply_markdown(
