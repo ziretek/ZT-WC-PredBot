@@ -10,6 +10,7 @@ from telegram.ext import (
 from wcbot.agents.prediction_engine import PredictionEngineAgent
 from wcbot.agents.state_manager import StateManagerAgent
 from wcbot.agents.data_ingestion import DataIngestionAgent
+from wcbot.handlers.predict import _is_round_of_32_request
 from wcbot.models.prediction import Prediction
 from wcbot.utils.formatting import format_prediction
 from wcbot.utils.teams import normalize_team_name, unknown_team_message
@@ -42,7 +43,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     lower = text.lower()
 
-    if "compare" in lower:
+    if _is_round_of_32_request(text) or any(w in lower for w in ["who advanced", "teams in the round"]):
+        return await handle_round_of_32(update, context)
+    elif "compare" in lower:
         return await handle_compare_request(update, context, text)
     elif "predict" in lower or "vs" in lower:
         return await handle_predict_request(update, context, text)
@@ -176,8 +179,9 @@ async def handle_round_of_32(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await update.message.reply_markdown(llm_answer)
                 return ASK_FOLLOWUP
         await update.message.reply_markdown(
-            "Live standings aren't available (requires `SPORTS_API_KEY` with World Cup data). "
-            "Try asking me in a different way!"
+            "Round of 32 standings require live group data from `SPORTS_API_KEY`.\n\n"
+            "Try `/simulate` for a tournament outlook, or `/predict Brazil vs Argentina` "
+            "for an individual match prediction."
         )
         return ASK_FOLLOWUP
 
@@ -232,9 +236,13 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
     text = re.sub(r"^/predict\b", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"^predict\b", "", text, flags=re.IGNORECASE).strip()
 
+    if _is_round_of_32_request(text):
+        return await handle_round_of_32(update, context)
+
     if " vs " not in text:
         await update.message.reply_markdown(
-            "Which match do you want me to predict? Say *\"Brazil vs Argentina\"*"
+            "Which match do you want me to predict? Say *\"Brazil vs Argentina\"*.\n\n"
+            "For knockout qualification, say *\"round of 32\"*."
         )
         return ASK_HOME
 

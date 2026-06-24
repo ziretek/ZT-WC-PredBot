@@ -1,6 +1,38 @@
 import unittest
+import asyncio
 
+from wcbot.handlers.chat import ASK_FOLLOWUP, handle_predict_request
 from wcbot.handlers.predict import _is_round_of_32_request
+
+
+class _FakeMessage:
+    def __init__(self):
+        self.replies = []
+
+    async def reply_markdown(self, text, **kwargs):
+        self.replies.append(text)
+        return self
+
+
+class _FakeUpdate:
+    def __init__(self):
+        self.message = _FakeMessage()
+
+
+class _FakeIngestion:
+    async def fetch_round_of_32(self):
+        return []
+
+
+class _FakeEngine:
+    llm = None
+
+
+class _FakeContext:
+    bot_data = {
+        "data_ingestion": _FakeIngestion(),
+        "prediction_engine": _FakeEngine(),
+    }
 
 
 class PredictIntentTests(unittest.TestCase):
@@ -12,6 +44,14 @@ class PredictIntentTests(unittest.TestCase):
 
     def test_match_prediction_is_not_round_of_32(self):
         self.assertFalse(_is_round_of_32_request("Brazil vs Argentina"))
+
+    def test_chat_predict_round_of_32_uses_round_handler(self):
+        update = _FakeUpdate()
+        result = asyncio.run(handle_predict_request(update, _FakeContext(), "Predict round of 32"))
+
+        self.assertEqual(result, ASK_FOLLOWUP)
+        self.assertIn("Round of 32", update.message.replies[-1])
+        self.assertNotIn("Which match", update.message.replies[-1])
 
 
 if __name__ == "__main__":
