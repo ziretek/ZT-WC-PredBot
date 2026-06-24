@@ -168,7 +168,16 @@ async def handle_round_of_32(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     advancing = await ingestion.fetch_round_of_32()
     if not advancing:
-        await update.message.reply_markdown("Group stage hasn't finished yet — check back later!")
+        engine: PredictionEngineAgent = context.bot_data.get("prediction_engine")
+        if engine and engine.llm:
+            llm_answer = await engine.llm.answer_question("Which teams are in the round of 32 of the 2026 World Cup?")
+            if llm_answer:
+                await update.message.reply_markdown(llm_answer)
+                return ASK_FOLLOWUP
+        await update.message.reply_markdown(
+            "Live standings aren't available (requires `SPORTS_API_KEY` with World Cup data). "
+            "Try asking me in a different way!"
+        )
         return ASK_FOLLOWUP
 
     text = "🏆 *Round of 32 — Advancing Teams*\n\n"
