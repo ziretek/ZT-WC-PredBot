@@ -8,9 +8,10 @@ logger = logging.getLogger(__name__)
 
 
 class LLMWeightedModel:
-    def __init__(self, api_key: Optional[str] = None, api_url: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, api_url: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or Config.OPENAI_API_KEY
         self.api_url = api_url or Config.OPENAI_API_URL
+        self.model = model or Config.LLM_MODEL
         self.http_client = None
 
     async def predict_match(self, home_team: str, away_team: str,
@@ -62,11 +63,10 @@ Respond in JSON format with exactly these fields:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "gpt-4o-mini",
+                    "model": self.model,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.3,
                     "max_tokens": 300,
-                    "response_format": {"type": "json_object"},
                 },
             )
             resp.raise_for_status()
@@ -117,7 +117,7 @@ Rules:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "gpt-4o-mini",
+                    "model": self.model,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.5,
                     "max_tokens": 250,
