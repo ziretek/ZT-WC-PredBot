@@ -1,0 +1,320 @@
+import re
+import logging
+from uuid import uuid4
+
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import (
+    ConversationHandler, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+)
+
+from wcbot.agents.prediction_engine import PredictionEngineAgent
+from wcbot.agents.state_manager import StateManagerAgent
+from wcbot.models.prediction import Prediction
+from wcbot.utils.formatting import format_prediction
+
+logger = logging.getLogger(__name__)
+
+ASK_HOME, ASK_AWAY, ASK_FOLLOWUP, COMPARE_TEAM = range(4)
+
+CANCEL_KEYBOARD = [["/cancel"]]
+
+
+async def chat_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_markdown(
+        "💬 *Chat Mode*\n\n"
+        "I can help you with predictions conversationally.\n\n"
+        "*Examples:*\n"
+        "• \"Predict Brazil vs Argentina\"\n"
+        "• \"Who will win the World Cup?\"\n"
+        "• \"Compare France and England\"\n"
+        "• \"Explain the model\"\n\n"
+        "Send `/cancel` anytime to exit chat mode.\n\n"
+        "What would you like to know?",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+    return ASK_HOME
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    lower = text.lower()
+
+    if "predict" in lower or "vs" in text:
+        return await handle_predict_request(update, context, text)
+    elif "win" in lower and ("world cup" in lower or "tournament" in lower):
+        return await handle_simulation_request(update, context)
+    elif "compare" in lower or "vs" in text:
+        return await handle_compare_request(update, context, text)
+    elif "hello" in lower or "hi" in lower or "hey" in lower:
+        await update.message.reply_markdown(
+            "Hello! 👋 Want a World Cup prediction? Just say *\"Predict Brazil vs Argentina\"*"
+        )
+        return ASK_FOLLOWUP
+    elif "help" in lower or "what can" in lower:
+        await update.message.reply_markdown(
+            "Ask me anything about the 2026 World Cup!\n\n"
+            "• `Predict Brazil vs Argentina`\n"
+            "• `Who wins the tournament?`\n"
+            "• `Compare France vs England`\n"
+            "• `Explain how you predict`"
+        )
+        return ASK_FOLLOWUP
+    elif "model" in lower or "how" in lower:
+        return await handle_model_explain(update, context)
+    else:
+        await update.message.reply_markdown(
+            "I'm not sure what you mean. Try:\n"
+            "• \"Predict Brazil vs Argentina\"\n"
+            "• \"Who will win the World Cup?\"\n"
+            "• `/help` for commands"
+        )
+        return ASK_FOLLOWUP
+
+
+async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    text = text.replace("/predict", "").strip()
+
+    if " vs " not in text:
+        await update.message.reply_markdown(
+            "Which match do you want me to predict? Say *\"Brazil vs Argentina\"*"
+        )
+        return ASK_HOME
+
+    parts = re.split(r'\s+vs\s+', text, maxsplit=1)
+    if len(parts) != 2:
+        return ASK_HOME
+
+    home, away = parts[0].strip(), parts[1].strip()
+
+    sent = await update.message.reply_markdown(f"🧠 Analyzing *{home} vs {away}*...")
+
+    engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
+    state: StateManagerAgent = context.bot_data["state_manager"]
+
+    result = await engine.predict(home, away)
+
+    pred = Prediction(
+        prediction_id=str(uuid4()),
+        user_id=update.effective_user.id,
+        match_id=f"{home.lower()}-{away.lower()}",
+        home_team=home,
+        away_team=away,
+        predicted_home_score=result.home_score,
+        predicted_away_score=result.away_score,
+        predicted_winner=result.winner,
+        confidence=result.confidence,
+        model_version=result.model_version,
+    )
+    await state.save_prediction(update.effective_user.id, pred.match_id, pred)
+
+    await sent.edit_text(format_prediction(result, home, away))
+
+    context.user_data["last_home"] = home
+    context.user_data["last_away"] = away
+    context.user_data["last_prediction"] = result
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔁 Swap teams", callback_data="swap")],
+        [InlineKeyboardButton("📊 Detailed comparison", callback_data="deep_dive")],
+        [InlineKeyboardButton("🎲 Simulate tournament", callback_data="simulate")],
+        [InlineKeyboardButton("❓ Ask something else", callback_data="new_question")],
+    ])
+    await update.message.reply_markdown(
+        "What next?", reply_markup=keyboard
+    )
+    return ASK_FOLLOWUP
+
+
+async def handle_simulation_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
+    await update.message.reply_markdown("🎲 Running 10,000 tournament simulations...")
+    results = await engine.simulate_tournament(iterations=10000)
+
+    from wcbot.utils.formatting import format_simulation
+    lines = format_simulation(results)
+
+    for chunk in [lines[i:i + 4000] for i in range(0, len(lines), 4000)]:
+        await update.message.reply_markdown(chunk)
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔮 Predict a match", callback_data="predict")],
+        [InlineKeyboardButton("❓ Ask something else", callback_data="new_question")],
+    ])
+    await update.message.reply_markdown("What next?", reply_markup=keyboard)
+    return ASK_FOLLOWUP
+
+
+async def handle_compare_request(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    text = text.replace("compare", "", case=False).strip()
+    if " vs " not in text:
+        await update.message.reply_markdown(
+            "Which two teams? Say *\"Compare France vs England\"*"
+        )
+        return ASK_HOME
+
+    parts = re.split(r'\s+vs\s+', text, maxsplit=1)
+    if len(parts) != 2:
+        return ASK_HOME
+
+    t1, t2 = parts[0].strip(), parts[1].strip()
+    engine = context.bot_data["prediction_engine"]
+
+    p1 = await engine.predict(t1, t2)
+    p2 = await engine.predict(t2, t1)
+
+    msg = (
+        f"📊 *{t1} vs {t2} — Comparison*\n\n"
+        f"*{t1} (home):* {p1.winner} {p1.home_score}-{p1.away_score} "
+        f"(conf: {p1.confidence:.0%})\n"
+        f"*{t2} (home):* {p2.winner} {p2.home_score}-{p2.away_score} "
+        f"(conf: {p2.confidence:.0%})\n\n"
+        f"*Key insights:*\n"
+        f"• {p1.reasoning}\n"
+    )
+    await update.message.reply_markdown(msg)
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔁 Predict a match", callback_data="predict")],
+        [InlineKeyboardButton("❓ New question", callback_data="new_question")],
+    ])
+    await update.message.reply_markdown("Anything else?", reply_markup=keyboard)
+    return ASK_FOLLOWUP
+
+
+async def handle_model_explain(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
+    card = await engine.get_model_card()
+
+    await update.message.reply_markdown(
+        "🧠 *How I Predict*\n\n"
+        "I use a **4-model ensemble**:\n\n"
+        "1. *Elo* — Rating system. Teams gain/lose points based on match results. "
+        f"{card.get('elo_teams_tracked', 0)} teams tracked.\n"
+        "2. *Poisson xG* — Expected goals based on attack/defense strength per team.\n"
+        "3. *Gradient Boosting* — Feature-weighted scoring (Elo diff, xG diff, form).\n"
+        "4. *LLM* — Language model reasoning (if API key is configured).\n\n"
+        f"*Accuracy:* {card.get('accuracy', 0):.0%} | "
+        f"*Ensemble:* Elo {card.get('model_weights', {}).get('elo', 0):.0%}, "
+        f"Poisson {card.get('model_weights', {}).get('poisson', 0):.0%}, "
+        f"GB {card.get('model_weights', {}).get('gb', 0):.0%}"
+    )
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔮 Predict a match", callback_data="predict")],
+        [InlineKeyboardButton("❓ New question", callback_data="new_question")],
+    ])
+    await update.message.reply_markdown("Try a prediction?", reply_markup=keyboard)
+    return ASK_FOLLOWUP
+
+
+async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+
+    if data == "swap":
+        home = context.user_data.get("last_away")
+        away = context.user_data.get("last_home")
+        if home and away:
+            await query.edit_message_text(f"🔄 Swapping... analyzing *{home} vs {away}*")
+            engine = context.bot_data["prediction_engine"]
+            result = await engine.predict(home, away)
+            await query.edit_message_text(
+                format_prediction(result, home, away),
+                parse_mode="Markdown",
+            )
+            context.user_data["last_home"] = home
+            context.user_data["last_away"] = away
+            context.user_data["last_prediction"] = result
+
+    elif data == "deep_dive":
+        home = context.user_data.get("last_home", "?")
+        away = context.user_data.get("last_away", "?")
+        engine = context.bot_data["prediction_engine"]
+        result = await engine.predict(home, away)
+        parts = [
+            f"📊 *Deep Dive: {home} vs {away}*\n",
+            "*Ensemble Breakdown:*",
+        ]
+        eb = result.ensemble_breakdown
+        for name, model in [("Elo", eb.elo), ("Poisson xG", eb.poisson_xg),
+                            ("Gradient Boosting", eb.gradient_boosting),
+                            ("LLM", eb.llm_weighted)]:
+            parts.append(
+                f"▸ *{name}:* {model.get('winner', '?')} "
+                f"({model.get('home_score', '?')}–{model.get('away_score', '?')}, "
+                f"conf {model.get('confidence', 0):.0%})"
+            )
+        parts.extend([
+            "",
+            "*Top Factors:*",
+        ])
+        for f in result.key_factors[:5]:
+            parts.append(f"• {f['factor'].replace('_', ' ').title()} ({f['impact']:.0%} impact)")
+        parts.extend([
+            "",
+            f"*Reasoning:* {result.reasoning}",
+        ])
+        await query.edit_message_text("\n".join(parts), parse_mode="Markdown")
+
+    elif data == "simulate":
+        await query.edit_message_text("🎲 Running 10,000 simulations...")
+        engine = context.bot_data["prediction_engine"]
+        results = await engine.simulate_tournament(iterations=10000)
+        from wcbot.utils.formatting import format_simulation
+        await query.edit_message_text(format_simulation(results), parse_mode="Markdown")
+
+    elif data == "predict":
+        await query.edit_message_text(
+            "Which match? Say *\"Predict Brazil vs Argentina\"*"
+        )
+        return ASK_HOME
+
+    elif data == "new_question":
+        await query.edit_message_text(
+            "Sure! What would you like to know?\n"
+            "• Predict a match\n"
+            "• Tournament simulation\n"
+            "• Compare teams\n"
+            "• Explain the model"
+        )
+        return ASK_HOME
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔁 Another match", callback_data="predict")],
+        [InlineKeyboardButton("❓ New question", callback_data="new_question")],
+    ])
+    await query.message.reply_markdown("Anything else?", reply_markup=keyboard)
+    return ASK_FOLLOWUP
+
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_markdown(
+        "Chat mode ended. Use `/chat` to start again.",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+    return ConversationHandler.END
+
+
+def get_chat_conversation_handler():
+    return ConversationHandler(
+        entry_points=[CommandHandler("chat", chat_start)],
+        states={
+            ASK_HOME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
+                CallbackQueryHandler(handle_callback),
+            ],
+            ASK_FOLLOWUP: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
+                CallbackQueryHandler(handle_callback),
+            ],
+            COMPARE_TEAM: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_predict_request),
+                CallbackQueryHandler(handle_callback),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        name="wcbot_chat",
+        persistent=False,
+    )

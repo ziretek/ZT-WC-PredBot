@@ -13,6 +13,7 @@ from .feedback import feedback_handler
 from .settings import settings_handler
 from .help import help_handler
 from .track import track_handler, rtstatus_handler
+from .chat import get_chat_conversation_handler
 
 __all__ = [
     "start_handler",
@@ -32,4 +33,5 @@ __all__ = [
     "help_handler",
     "track_handler",
     "rtstatus_handler",
+    "get_chat_conversation_handler",
 ]

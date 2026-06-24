@@ -29,7 +29,18 @@ Entry-point Telegram bot for the 2026 World Cup AI Predictions system. Wields a 
 | `/subscribe <team>` | Get push alerts: lineups, score changes, odds swings |
 | `/feedback <prediction_id> <correct/incorrect>` | Flag a prediction for model retraining |
 | `/settings` | Configure units, language, alert preferences, model verbosity |
+| `/chat` | Enter conversational mode — ask follow-ups naturally |
+| `/cancel` | Exit chat mode |
 | `/help` | Show all commands |
+
+## Chat Mode (`/chat`)
+Enter a natural conversation flow. After any prediction, inline buttons let you:
+- **Swap teams** — flip home/away and re-predict
+- **Deep dive** — see the full ensemble breakdown per model + top factors
+- **Simulate** — run Monte Carlo directly from the conversation
+- **New question** — ask anything else without re-typing `/predict`
+
+The bot stores your last prediction in context so follow-ups feel connected.
 
 ## Real-Time System
 The bot runs a background `RealtimeEngine` that polls every 10 seconds for tracked matches:
