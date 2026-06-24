@@ -127,20 +127,18 @@ class EloModel:
     @staticmethod
     def _default_ratings() -> dict:
         return {
-            "Brazil": 1850, "Argentina": 1820, "France": 1800,
-            "England": 1780, "Spain": 1760, "Germany": 1750,
-            "Portugal": 1740, "Netherlands": 1730, "Italy": 1720,
-            "Belgium": 1700, "Croatia": 1680, "Uruguay": 1660,
-            "Colombia": 1640, "Denmark": 1630, "Switzerland": 1610,
-            "Japan": 1600, "Morocco": 1590, "Senegal": 1580,
-            "USA": 1570, "Mexico": 1560, "South Korea": 1550,
-            "Australia": 1540, "Poland": 1570, "Serbia": 1560,
-            "Iran": 1530, "Ivory Coast": 1520, "Ghana": 1510,
-            "Saudi Arabia": 1480, "Cameroon": 1490, "Tunisia": 1500,
-            "Canada": 1510, "Ecuador": 1530, "Costa Rica": 1470,
-            "Wales": 1550, "Scotland": 1520, "Austria": 1540,
-            "Sweden": 1530, "Norway": 1520, "Turkey": 1550,
-            "Czech Republic": 1510, "Ukraine": 1500, "Russia": 1490,
+            "Argentina": 1820, "Australia": 1540, "Austria": 1540, "Belgium": 1700,
+            "Bosnia and Herzegovina": 1520, "Brazil": 1850, "Canada": 1510, "Cape Verde": 1450,
+            "Colombia": 1640, "Croatia": 1680, "Curaçao": 1400, "Czech Republic": 1510,
+            "DR Congo": 1480, "Ecuador": 1530, "Egypt": 1560, "England": 1780,
+            "France": 1800, "Germany": 1750, "Ghana": 1510, "Haiti": 1420,
+            "Iran": 1530, "Iraq": 1500, "Ivory Coast": 1550, "Japan": 1600,
+            "Jordan": 1480, "Mexico": 1560, "Morocco": 1590, "Netherlands": 1730,
+            "New Zealand": 1470, "Norway": 1540, "Panama": 1460, "Paraguay": 1520,
+            "Portugal": 1740, "Qatar": 1500, "Saudi Arabia": 1480, "Scotland": 1520,
+            "Senegal": 1580, "South Africa": 1510, "South Korea": 1550, "Spain": 1760,
+            "Sweden": 1530, "Switzerland": 1610, "Tunisia": 1500, "Turkey": 1550,
+            "United States": 1570, "Uruguay": 1660, "Uzbekistan": 1490,
         }
 
     def _load(self) -> dict:
