@@ -49,6 +49,29 @@ def format_prediction(result: PredictionResult, home: str, away: str) -> str:
     return "\n".join(parts)
 
 
+def format_tentative_prediction(result: PredictionResult, home: str, away: str,
+                                min_models: int, min_confidence: float) -> str:
+    parts = [
+        f"🤷 *{home} vs {away}* — no official pick.",
+        "",
+        f"*Tentative lean:* {result.winner} ({result.home_score}–{result.away_score})",
+        f"*Model confidence:* {result.confidence:.0%} {_confidence_bar(result.confidence)}",
+        "",
+        "I’m holding back because this match does not clear precision mode:",
+        f"• Needs ≥{min_models} of 4 models agreeing",
+        f"• Needs ≥{min_confidence:.0%} ensemble confidence",
+        "",
+        f"*Why it leans this way:*\n{result.reasoning}",
+        "",
+        "Use `/simulate` for tournament odds or try a match with a clearer favourite.",
+    ]
+
+    if result.low_consensus:
+        parts.insert(6, "• Current model consensus is low")
+
+    return "\n".join(parts)
+
+
 def format_leaderboard(entries: list, title: str = "🏆 Leaderboard") -> str:
     if not entries:
         return f"{title}\n\nNo predictions yet — be the first!"
@@ -137,6 +160,8 @@ def format_help() -> str:
         "*Commands:*\n"
         "`/predict <home> vs <away>` — Get AI prediction\n"
         "`/predict round of 32` — Round of 32 outlook\n"
+        "`/round32` — Round of 32 outlook\n"
+        "`/winner` — World Cup winner forecast\n"
         "`/predictions` — Your prediction history\n"
         "`/leaderboard` — Global rankings\n"
         "`/standings` — Group tables\n"
@@ -149,7 +174,7 @@ def format_help() -> str:
         "`/feedback <id> <y/n>` — Flag prediction\n"
         "`/settings` — Your preferences\n"
         "`/help` — This message\n\n"
-        "Built with a 5-model ensemble engine."
+        "Built with a 4-model ensemble plus optional LLM reasoning."
     )
 
 

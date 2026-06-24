@@ -20,7 +20,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_markdown(
         f"⚽ *Welcome to ZT WC PredBot!*\n\n"
         f"AI-powered predictions for the 2026 World Cup.\n"
-        f"Powered by a 5-model ensemble engine.\n\n"
+        f"Powered by a 4-model ensemble plus optional LLM reasoning.\n\n"
         f"{format_model_card(card)}\n\n"
-        f"Try `/predict Brazil vs Argentina` to start!"
+        f"Try `/predict Brazil vs Argentina`, `/round32`, or `/winner` to start!"
     )

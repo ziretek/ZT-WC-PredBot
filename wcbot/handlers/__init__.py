@@ -15,6 +15,7 @@ from .help import help_handler
 from .track import track_handler, rtstatus_handler
 from .value import value_handler
 from .injuries import injuries_handler
+from .tournament import round32_handler, winner_handler, tournament_handler
 from .chat import get_chat_conversation_handler, cancel_global
 
 __all__ = [
@@ -37,6 +38,9 @@ __all__ = [
     "rtstatus_handler",
     "value_handler",
     "injuries_handler",
+    "round32_handler",
+    "winner_handler",
+    "tournament_handler",
     "get_chat_conversation_handler",
     "cancel_global",
 ]

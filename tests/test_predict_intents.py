@@ -2,7 +2,7 @@ import unittest
 import asyncio
 
 from wcbot.handlers.chat import ASK_FOLLOWUP, handle_predict_request
-from wcbot.handlers.predict import _is_round_of_32_request
+from wcbot.handlers.tournament import is_round_of_32_request
 
 
 class _FakeMessage:
@@ -37,13 +37,13 @@ class _FakeContext:
 
 class PredictIntentTests(unittest.TestCase):
     def test_round_of_32_phrases(self):
-        self.assertTrue(_is_round_of_32_request("round of 32"))
-        self.assertTrue(_is_round_of_32_request("Predict R32"))
-        self.assertTrue(_is_round_of_32_request("next round"))
-        self.assertTrue(_is_round_of_32_request("knockout stage"))
+        self.assertTrue(is_round_of_32_request("round of 32"))
+        self.assertTrue(is_round_of_32_request("Predict R32"))
+        self.assertTrue(is_round_of_32_request("next round"))
+        self.assertTrue(is_round_of_32_request("knockout stage"))
 
     def test_match_prediction_is_not_round_of_32(self):
-        self.assertFalse(_is_round_of_32_request("Brazil vs Argentina"))
+        self.assertFalse(is_round_of_32_request("Brazil vs Argentina"))
 
     def test_chat_predict_round_of_32_uses_round_handler(self):
         update = _FakeUpdate()

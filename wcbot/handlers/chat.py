@@ -10,7 +10,7 @@ from telegram.ext import (
 from wcbot.agents.prediction_engine import PredictionEngineAgent
 from wcbot.agents.state_manager import StateManagerAgent
 from wcbot.agents.data_ingestion import DataIngestionAgent
-from wcbot.handlers.predict import _is_round_of_32_request
+from wcbot.handlers.tournament import is_round_of_32_request
 from wcbot.models.prediction import Prediction
 from wcbot.utils.formatting import format_prediction
 from wcbot.utils.teams import normalize_team_name, unknown_team_message
@@ -43,7 +43,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     lower = text.lower()
 
-    if _is_round_of_32_request(text) or any(w in lower for w in ["who advanced", "teams in the round"]):
+    if is_round_of_32_request(text) or any(w in lower for w in ["who advanced", "teams in the round"]):
         return await handle_round_of_32(update, context)
     elif "compare" in lower:
         return await handle_compare_request(update, context, text)
@@ -236,7 +236,7 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
     text = re.sub(r"^/predict\b", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"^predict\b", "", text, flags=re.IGNORECASE).strip()
 
-    if _is_round_of_32_request(text):
+    if is_round_of_32_request(text):
         return await handle_round_of_32(update, context)
 
     if " vs " not in text:

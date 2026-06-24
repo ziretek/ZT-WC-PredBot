@@ -2,35 +2,19 @@ import re
 
 from telegram import Update
 from telegram.ext import ContextTypes
-from wcbot.agents.data_ingestion import DataIngestionAgent
 from wcbot.agents.prediction_engine import PredictionEngineAgent, MIN_MODELS_AGREEING, MIN_CONFIDENCE_FOR_PREDICTION
 from wcbot.agents.state_manager import StateManagerAgent
-from wcbot.utils.formatting import format_prediction
+from wcbot.handlers.tournament import is_round_of_32_request, reply_round_of_32
+from wcbot.utils.formatting import format_prediction, format_tentative_prediction
 from wcbot.utils.teams import normalize_team_name, unknown_team_message
 from wcbot.models.prediction import Prediction
 from uuid import uuid4
 
 
-def _is_round_of_32_request(text: str) -> bool:
-    lower = text.lower()
-    return any(
-        phrase in lower
-        for phrase in (
-            "round of 32",
-            "round of thirty two",
-            "round of thirty-two",
-            "r32",
-            "ro32",
-            "knockout",
-            "next round",
-        )
-    )
-
-
 async def predict_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text[len("/predict "):].strip()
-    if _is_round_of_32_request(text):
-        await _reply_round_of_32(update, context)
+    if is_round_of_32_request(text):
+        await reply_round_of_32(update, context)
         return
 
     if not text or "vs" not in text:
@@ -73,12 +57,13 @@ async def predict_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = await engine.predict(home, away)
 
     if result.abstained:
-        await update.message.reply_markdown(
-            f"🤷 *{home} vs {away}* — too close to call confidently.\n\n"
-            f"The ensemble requires ≥{MIN_MODELS_AGREEING} of 4 models agreeing "
-            f"at ≥{MIN_CONFIDENCE_FOR_PREDICTION:.0%} confidence to issue a prediction.\n\n"
-            f"Try a match with a clearer favourite, or use `/simulate` for tournament odds."
-        )
+        await update.message.reply_markdown(format_tentative_prediction(
+            result,
+            home,
+            away,
+            MIN_MODELS_AGREEING,
+            MIN_CONFIDENCE_FOR_PREDICTION,
+        ))
         return
 
     pred = Prediction(
@@ -96,37 +81,3 @@ async def predict_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await state.save_prediction(update.effective_user.id, pred.match_id, pred)
 
     await update.message.reply_markdown(format_prediction(result, home, away))
-
-
-async def _reply_round_of_32(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ingestion: DataIngestionAgent = context.bot_data["data_ingestion"]
-    engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
-
-    await update.message.reply_markdown("🏆 Checking Round of 32 picture...")
-    advancing = await ingestion.fetch_round_of_32()
-
-    if advancing:
-        text = "🏆 *Round of 32 — Advancing Teams*\n\n"
-        for entry in advancing:
-            text += (
-                f"*{entry.get('group', '?')}* — {entry.get('name', 'Unknown')} "
-                f"({entry.get('points', 0)}pts, GD {entry.get('goal_diff', 0):+d})\n"
-            )
-        text += "\nUse `/predict <home> vs <away>` for match predictions."
-        await update.message.reply_markdown(text)
-        return
-
-    if engine and engine.llm:
-        llm_answer = await engine.llm.answer_question(
-            "Give a concise Round of 32 outlook for the 2026 World Cup. "
-            "If live standings are unavailable, say this is an outlook, not confirmed standings."
-        )
-        if llm_answer:
-            await update.message.reply_markdown(llm_answer)
-            return
-
-    await update.message.reply_markdown(
-        "I can predict individual matches with `/predict Brazil vs Argentina`, "
-        "but Round of 32 standings require live group data from `SPORTS_API_KEY`.\n\n"
-        "Try `/simulate` for tournament odds or `/standings` for live group tables."
-    )

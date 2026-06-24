@@ -293,7 +293,7 @@ class PredictionEngineAgent:
             "log_loss": round(self._calibration.get("log_loss", 0.0), 3),
             "last_update": datetime.utcnow().isoformat(),
             "calibration_by_band": self._calibration.get("by_band", {}),
-            "ensemble_models": ["Elo", "Poisson xG", "Gradient Boosting", "Transformer", "LLM Weighted"],
+            "ensemble_models": ["Elo", "Poisson xG", "Feature Weighted", "LLM Weighted"],
             "model_weights": self.weights,
             "elo_teams_tracked": len(self.elo.ratings),
             "elo_matches_recorded": self.elo.match_count,

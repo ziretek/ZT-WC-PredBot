@@ -2,6 +2,7 @@ import logging
 import os
 
 from telegram.ext import Application, CommandHandler
+from telegram import BotCommand
 
 from wcbot.config import Config
 from wcbot.agents.data_ingestion import DataIngestionAgent
@@ -28,6 +29,9 @@ from wcbot.handlers import (
     rtstatus_handler,
     value_handler,
     injuries_handler,
+    round32_handler,
+    winner_handler,
+    tournament_handler,
     get_chat_conversation_handler,
     cancel_global,
 )
@@ -66,6 +70,22 @@ async def post_init(app: Application):
     else:
         logger.info("Realtime engine disabled (no API keys — predictions use built-in data)")
 
+    try:
+        await app.bot.set_my_commands([
+            BotCommand("start", "Start the bot and show model status"),
+            BotCommand("predict", "Predict a match or ask for round of 32"),
+            BotCommand("round32", "Round of 32 outlook"),
+            BotCommand("winner", "World Cup winner forecast"),
+            BotCommand("simulate", "Tournament simulation"),
+            BotCommand("teams", "Supported teams"),
+            BotCommand("standings", "Group standings if live data is available"),
+            BotCommand("value", "Compare model vs market odds"),
+            BotCommand("chat", "Conversational mode"),
+            BotCommand("help", "Show commands"),
+        ])
+    except Exception as e:
+        logger.warning("Failed to update Telegram command menu: %s", e)
+
 
 async def post_shutdown(app: Application):
     realtime = app.bot_data.get("realtime")
@@ -102,6 +122,10 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("teams", teams_handler))
     app.add_handler(CommandHandler("match", match_handler))
     app.add_handler(CommandHandler("simulate", simulate_handler))
+    app.add_handler(CommandHandler("tournament", tournament_handler))
+    app.add_handler(CommandHandler("round32", round32_handler))
+    app.add_handler(CommandHandler("winner", winner_handler))
+    app.add_handler(CommandHandler("champion", winner_handler))
     app.add_handler(CommandHandler("model", model_handler))
     app.add_handler(CommandHandler("insights", insights_handler))
     app.add_handler(CommandHandler("subscribe", subscribe_handler))

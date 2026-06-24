@@ -14,6 +14,7 @@ The bot is designed as a practical prediction assistant: users can request match
 - **Optional LLM reasoning** through an OpenAI-compatible chat-completions API. The default config points at DeepSeek, but the API URL and model are configurable.
 - **Ensemble voting** with configurable model weights.
 - **Abstention mode** for low-confidence or low-consensus matches. By default, the bot requires at least 3 of 4 models to agree and at least 80% ensemble confidence before issuing a saved prediction.
+- **Tentative lean mode** for close matches. When the bot refuses to save an official pick, it still shows the model lean, scoreline, confidence, and reasoning.
 - **Team normalization** for common aliases such as `USA`, `USMNT`, `Korea Republic`, `Cote d'Ivoire`, and `Curacao`.
 
 ### Persistence
@@ -34,6 +35,10 @@ User profiles, prediction history, subscriptions, and leaderboard state are stor
 | `/start` | Implemented | Create a user profile and show the model card |
 | `/predict <home> vs <away>` | Implemented | Predict a match when the ensemble is confident enough |
 | `/predict round of 32` | Implemented, API/LLM-dependent | Show live advancing teams or a Round of 32 outlook |
+| `/round32` | Implemented, API/LLM-dependent | Direct Round of 32 outlook command |
+| `/winner` | Implemented | Forecast likely World Cup winners |
+| `/champion` | Implemented | Alias for `/winner` |
+| `/tournament` | Implemented | Alias-style tournament forecast command |
 | `/predictions` | Implemented | Show the stored prediction history for the user |
 | `/leaderboard` | Implemented | Show the stored leaderboard |
 | `/standings` | Implemented, API-dependent | Show standings when `SPORTS_API_KEY` is configured |
