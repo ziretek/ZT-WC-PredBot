@@ -47,7 +47,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await handle_simulation_request(update, context)
     elif "compare" in lower or "vs" in text:
         return await handle_compare_request(update, context, text)
-    elif "hello" in lower or "hi" in lower or "hey" in lower:
+    elif lower.strip() in ("hello", "hi", "hey", "hello!", "hi!", "hey!") or \
+         lower.startswith("hello ") or lower.startswith("hi ") or lower.startswith("hey "):
         await update.message.reply_markdown(
             "Hello! 👋 Want a World Cup prediction? Just say *\"Predict Brazil vs Argentina\"*"
         )
@@ -78,6 +79,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
          any(w in lower for w in ["qualif", "in the world cup", "participat", "play in",
                                    "competing", "in the tournament"]):
         return await handle_team_lookup(update, context, text)
+    elif any(w in lower for w in ["who are you", "what are you", "tell me about yourself",
+                                   "what is your name", "your name"]):
+        await update.message.reply_markdown(
+            "I'm *ZT WC PredBot* ⚽ — your AI assistant for the 2026 World Cup!\n\n"
+            "I can predict matches using a 4-model ensemble (Elo, Poisson xG, Gradient Boosting, LLM), "
+            "show group standings, list qualified teams, simulate the tournament, and answer your WC questions.\n\n"
+            "Try `/predict Brazil vs Argentina` or just chat with me!"
+        )
+        return ASK_FOLLOWUP
+    elif any(w in lower for w in ["where is", "where will", "where are", "which country",
+                                   "host", "venue", "stadium", "location", "city"]):
+        await update.message.reply_markdown(
+            "The *2026 World Cup* is co-hosted by the **USA, Canada, and Mexico** — "
+            "the first time 3 nations share hosting duties! Matches are played across 16 stadiums "
+            "in cities like New York, Los Angeles, Mexico City, Toronto, and Vancouver.\n\n"
+            "Use `/teams` to see all qualified nations, or `/predict <team> vs <team>` for predictions!"
+        )
+        return ASK_FOLLOWUP
     else:
         engine: PredictionEngineAgent = context.bot_data.get("prediction_engine")
         llm_answer = None
