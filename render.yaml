@@ -11,7 +11,7 @@ services:
       - key: WEBHOOK_URL
         value: https://zt-wcpredbot.onrender.com
       - key: DATA_DIR
-        value: /data
+        value: /app/data
       - key: LOG_LEVEL
         value: INFO
       - key: PORT
@@ -22,7 +22,3 @@ services:
         sync: false
       - key: ODDS_API_KEY
         sync: false
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1
