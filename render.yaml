@@ -11,7 +11,7 @@ services:
       - key: WEBHOOK_URL
         value: ""
       - key: DATA_DIR
-        value: /app/data
+        value: /data
       - key: LOG_LEVEL
         value: INFO
       - key: PORT

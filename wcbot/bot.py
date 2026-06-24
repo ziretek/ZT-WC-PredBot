@@ -50,6 +50,12 @@ async def post_init(app: Application):
     app.bot_data["state_manager"] = state
     app.bot_data["realtime"] = realtime
 
+    logger.info("Data dir: %s", Config.DATA_DIR)
+    logger.info("State DB: %s", Config.STATE_DB_PATH)
+    logger.info("Sports API: %s", "enabled" if Config.SPORTS_API_KEY else "disabled")
+    logger.info("Odds API: %s", "enabled" if Config.ODDS_API_KEY else "disabled")
+    logger.info("LLM reasoning: %s", "enabled" if Config.OPENAI_API_KEY else "disabled")
+
     if Config.SPORTS_API_KEY:
         await engine.pre_train(ingestion)
         await realtime.start()
@@ -61,9 +67,32 @@ async def post_init(app: Application):
         logger.info("Realtime engine disabled (no API keys — predictions use built-in data)")
 
 
+async def post_shutdown(app: Application):
+    realtime = app.bot_data.get("realtime")
+    ingestion = app.bot_data.get("data_ingestion")
+    engine = app.bot_data.get("prediction_engine")
+    state = app.bot_data.get("state_manager")
+
+    if realtime:
+        await realtime.stop()
+    if ingestion:
+        await ingestion.close()
+    if engine:
+        await engine.close()
+    if state:
+        state.close()
+    logger.info("Shutdown cleanup complete")
+
+
 def build_app() -> Application:
     Config.validate()
-    app = Application.builder().token(Config.TELEGRAM_TOKEN).post_init(post_init).build()
+    app = (
+        Application.builder()
+        .token(Config.TELEGRAM_TOKEN)
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
+        .build()
+    )
 
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(CommandHandler("predict", predict_handler))

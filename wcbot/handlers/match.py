@@ -4,6 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from wcbot.agents.data_ingestion import DataIngestionAgent
 from wcbot.agents.prediction_engine import PredictionEngineAgent
+from wcbot.utils.teams import normalize_team_name, unknown_team_message
 
 
 def _form_bar(elo_rating: float, baseline: float = 1500) -> str:
@@ -27,7 +28,18 @@ async def match_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(parts) != 2:
         return
 
-    home, away = parts[0].strip(), parts[1].strip()
+    raw_home, raw_away = parts[0].strip(), parts[1].strip()
+    home = normalize_team_name(raw_home)
+    away = normalize_team_name(raw_away)
+    if not home:
+        await update.message.reply_markdown(unknown_team_message(raw_home))
+        return
+    if not away:
+        await update.message.reply_markdown(unknown_team_message(raw_away))
+        return
+    if home == away:
+        await update.message.reply_markdown("Choose two different teams.")
+        return
 
     await update.message.reply_markdown(f"📊 Gathering dossier for *{home} vs {away}*...")
 

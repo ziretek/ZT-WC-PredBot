@@ -12,6 +12,7 @@ from wcbot.agents.state_manager import StateManagerAgent
 from wcbot.agents.data_ingestion import DataIngestionAgent
 from wcbot.models.prediction import Prediction
 from wcbot.utils.formatting import format_prediction
+from wcbot.utils.teams import normalize_team_name, unknown_team_message
 from wcbot.data.teams import WORLD_CUP_TEAMS_2026, TEAM_CONTINENTS, QUALIFIED_COUNT
 
 logger = logging.getLogger(__name__)
@@ -41,12 +42,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     lower = text.lower()
 
-    if "predict" in lower or "vs" in text:
+    if "compare" in lower:
+        return await handle_compare_request(update, context, text)
+    elif "predict" in lower or "vs" in lower:
         return await handle_predict_request(update, context, text)
     elif "win" in lower and ("world cup" in lower or "tournament" in lower):
         return await handle_simulation_request(update, context)
-    elif "compare" in lower or "vs" in text:
-        return await handle_compare_request(update, context, text)
     elif lower.strip() in ("hello", "hi", "hey", "hello!", "hi!", "hey!") or \
          lower.startswith("hello ") or lower.startswith("hi ") or lower.startswith("hey "):
         await update.message.reply_markdown(
@@ -228,7 +229,8 @@ async def handle_team_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE,
 
 
 async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    text = text.replace("/predict", "").replace("predict ", "").strip()
+    text = re.sub(r"^/predict\b", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"^predict\b", "", text, flags=re.IGNORECASE).strip()
 
     if " vs " not in text:
         await update.message.reply_markdown(
@@ -240,12 +242,30 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
     if len(parts) != 2:
         return ASK_HOME
 
-    home, away = parts[0].strip(), parts[1].strip()
+    raw_home, raw_away = parts[0].strip(), parts[1].strip()
+    home = normalize_team_name(raw_home)
+    away = normalize_team_name(raw_away)
+    if not home:
+        await update.message.reply_markdown(unknown_team_message(raw_home))
+        return ASK_FOLLOWUP
+    if not away:
+        await update.message.reply_markdown(unknown_team_message(raw_away))
+        return ASK_FOLLOWUP
+    if home == away:
+        await update.message.reply_markdown("Choose two different teams.")
+        return ASK_FOLLOWUP
 
     sent = await update.message.reply_markdown(f"🧠 Analyzing *{home} vs {away}*...")
 
     engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
     state: StateManagerAgent = context.bot_data["state_manager"]
+    user = update.effective_user
+    await state.create_user(
+        chat_id=user.id,
+        username=user.username,
+        first_name=user.first_name,
+        language=user.language_code or "en",
+    )
 
     result = await engine.predict(home, away)
 
@@ -309,7 +329,7 @@ async def handle_simulation_request(update: Update, context: ContextTypes.DEFAUL
 
 
 async def handle_compare_request(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    text = text.replace("compare", "", case=False).strip()
+    text = re.sub(r"^compare\b", "", text, flags=re.IGNORECASE).strip()
     if " vs " not in text:
         await update.message.reply_markdown(
             "Which two teams? Say *\"Compare France vs England\"*"
@@ -320,7 +340,18 @@ async def handle_compare_request(update: Update, context: ContextTypes.DEFAULT_T
     if len(parts) != 2:
         return ASK_HOME
 
-    t1, t2 = parts[0].strip(), parts[1].strip()
+    raw_t1, raw_t2 = parts[0].strip(), parts[1].strip()
+    t1 = normalize_team_name(raw_t1)
+    t2 = normalize_team_name(raw_t2)
+    if not t1:
+        await update.message.reply_markdown(unknown_team_message(raw_t1))
+        return ASK_FOLLOWUP
+    if not t2:
+        await update.message.reply_markdown(unknown_team_message(raw_t2))
+        return ASK_FOLLOWUP
+    if t1 == t2:
+        await update.message.reply_markdown("Choose two different teams.")
+        return ASK_FOLLOWUP
     engine = context.bot_data["prediction_engine"]
 
     p1 = await engine.predict(t1, t2)

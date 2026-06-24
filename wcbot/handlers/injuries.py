@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from wcbot.agents.data_ingestion import DataIngestionAgent
+from wcbot.utils.teams import normalize_team_name, unknown_team_message
 
 
 async def injuries_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -9,7 +10,11 @@ async def injuries_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_markdown("Usage: `/injuries Brazil`")
         return
 
-    team = text
+    team = normalize_team_name(text)
+    if not team:
+        await update.message.reply_markdown(unknown_team_message(text))
+        return
+
     await update.message.reply_markdown(f"🩻 Checking injuries for *{team}*...")
 
     ingestion: DataIngestionAgent = context.bot_data["data_ingestion"]

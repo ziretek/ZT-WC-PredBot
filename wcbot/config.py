@@ -12,6 +12,7 @@ class Config:
     WEBHOOK_URL: str = os.getenv("WEBHOOK_URL", "")
     PORT: int = int(os.getenv("PORT", os.getenv("PORT", "8443")))
     DATA_DIR: str = os.getenv("DATA_DIR", "./data")
+    STATE_DB_PATH: str = os.getenv("STATE_DB_PATH", os.path.join(DATA_DIR, "state.db"))
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_API_URL: str = os.getenv("OPENAI_API_URL", "https://api.deepseek.com/v1/chat/completions")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "deepseek-chat")
