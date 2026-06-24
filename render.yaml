@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: zt-wcpredbot
+    env: docker
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPO
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: WEBHOOK_URL
+        value: https://zt-wcpredbot.onrender.com
+      - key: DATA_DIR
+        value: /data
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PORT
+        value: "10000"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SPORTS_API_KEY
+        sync: false
+      - key: ODDS_API_KEY
+        sync: false
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
