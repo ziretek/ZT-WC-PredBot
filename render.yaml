@@ -9,7 +9,7 @@ services:
       - key: TELEGRAM_TOKEN
         sync: false
       - key: WEBHOOK_URL
-        value: https://zt-wcpredbot.onrender.com
+        value: ""
       - key: DATA_DIR
         value: /app/data
       - key: LOG_LEVEL
