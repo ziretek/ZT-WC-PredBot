@@ -46,8 +46,11 @@ async def post_init(app: Application):
     app.bot_data["state_manager"] = state
     app.bot_data["realtime"] = realtime
 
-    await realtime.start()
-    logger.info("Realtime engine auto-started")
+    if os.getenv("SPORTS_API_KEY") or os.getenv("ODDS_API_KEY"):
+        await realtime.start()
+        logger.info("Realtime engine started (live data available)")
+    else:
+        logger.info("Realtime engine disabled (no API keys — predictions use built-in data)")
 
 
 def build_app() -> Application:
@@ -88,23 +91,22 @@ def main():
     app = build_app()
 
     webhook_url = Config.WEBHOOK_URL
-    if not webhook_url:
-        host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "")
-        if host:
-            webhook_url = f"https://{host}"
-            logger.info(f"Detected Render hostname: {webhook_url}")
+    render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "")
+    if not webhook_url and render_host:
+        webhook_url = f"https://{render_host}"
+        logger.info(f"Detected Render: {webhook_url}")
 
     if webhook_url:
         full_webhook = f"{webhook_url}/{Config.TELEGRAM_TOKEN}"
-        logger.info(f"Starting webhook on port {Config.PORT} at {full_webhook}")
+        logger.info(f"Webhook mode on port {Config.PORT}")
         app.run_webhook(
             listen="0.0.0.0",
-            port=Config.PORT,
+            port=int(os.getenv("PORT", Config.PORT)),
             url_path=Config.TELEGRAM_TOKEN,
             webhook_url=full_webhook,
         )
     else:
-        logger.info("Starting polling mode")
+        logger.info("Polling mode")
         app.run_polling()
 
 
