@@ -2,7 +2,7 @@ services:
   - type: web
     name: zt-wcpredbot
     env: docker
-    repo: https://github.com/YOUR_USERNAME/YOUR_REPO
+    repo: https://github.com/ziretek/ZT-WC-PredBot
     plan: free
     dockerfilePath: ./Dockerfile
     envVars:
