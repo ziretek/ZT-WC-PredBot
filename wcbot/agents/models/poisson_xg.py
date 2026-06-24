@@ -118,6 +118,7 @@ class PoissonXGModel:
     @staticmethod
     def _default_params() -> dict:
         return {
+            "Algeria": {"attack": 0.8, "defense": 1.1},
             "Argentina": {"attack": 1.7, "defense": 0.7}, "Australia": {"attack": 0.7, "defense": 1.2},
             "Austria": {"attack": 0.9, "defense": 1.0}, "Belgium": {"attack": 1.3, "defense": 0.9},
             "Bosnia and Herzegovina": {"attack": 0.8, "defense": 1.1}, "Brazil": {"attack": 1.8, "defense": 0.6},

@@ -127,7 +127,7 @@ class EloModel:
     @staticmethod
     def _default_ratings() -> dict:
         return {
-            "Argentina": 1820, "Australia": 1540, "Austria": 1540, "Belgium": 1700,
+            "Algeria": 1510, "Argentina": 1820, "Australia": 1540, "Austria": 1540, "Belgium": 1700,
             "Bosnia and Herzegovina": 1520, "Brazil": 1850, "Canada": 1510, "Cape Verde": 1450,
             "Colombia": 1640, "Croatia": 1680, "Curaçao": 1400, "Czech Republic": 1510,
             "DR Congo": 1480, "Ecuador": 1530, "Egypt": 1560, "England": 1780,
