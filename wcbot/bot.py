@@ -1,4 +1,5 @@
 import logging
+import os
 
 from telegram.ext import Application, CommandHandler
 
@@ -86,13 +87,21 @@ async def error_handler(update, context):
 def main():
     app = build_app()
 
-    if Config.WEBHOOK_URL:
-        logger.info(f"Starting webhook mode on port {Config.PORT}")
+    webhook_url = Config.WEBHOOK_URL
+    if not webhook_url:
+        host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "")
+        if host:
+            webhook_url = f"https://{host}"
+            logger.info(f"Detected Render hostname: {webhook_url}")
+
+    if webhook_url:
+        full_webhook = f"{webhook_url}/{Config.TELEGRAM_TOKEN}"
+        logger.info(f"Starting webhook on port {Config.PORT} at {full_webhook}")
         app.run_webhook(
             listen="0.0.0.0",
             port=Config.PORT,
             url_path=Config.TELEGRAM_TOKEN,
-            webhook_url=f"{Config.WEBHOOK_URL}/{Config.TELEGRAM_TOKEN}",
+            webhook_url=full_webhook,
         )
     else:
         logger.info("Starting polling mode")
