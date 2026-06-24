@@ -86,6 +86,18 @@ git init && git add . && git commit -m "init" && git remote add origin <your-rep
 
 Webhook mode is automatic: if `WEBHOOK_URL` is set, the bot registers the webhook with Telegram on startup. No polling needed.
 
+## Subagents
+The bot delegates to specialized subagents for different tasks:
+
+| Agent | File | Responsibility |
+|-------|------|----------------|
+| **Prediction Engine** | `prediction_engine_agent.md` | 4-model ensemble predictions, confidence scoring, calibration |
+| **State Manager** | `state_manager_agent.md` | User profiles, prediction history, leaderboards, feedback loop |
+| **Data Ingestion** | `data_ingestion_agent.md` | Live scores, odds, standings, team/player stats via APIs |
+| **Knowledge** | `knowledge_agent.md` | 2026 WC factual data: qualified teams, groups, format, venues |
+| **QA** | `qa_agent.md` | NLU intent classification, entity extraction, factual Q&A routing |
+| **Insights** | `insights_agent.md` | Upset alerts, key battles, form narratives, value pick analysis |
+
 ## Directives
 - Respond < 2s; background heavy predictions with "wcbot is thinking..." placeholder
 - Split long messages with pagination inline keyboard
