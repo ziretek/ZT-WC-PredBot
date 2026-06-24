@@ -9,8 +9,10 @@ from telegram.ext import (
 
 from wcbot.agents.prediction_engine import PredictionEngineAgent
 from wcbot.agents.state_manager import StateManagerAgent
+from wcbot.agents.data_ingestion import DataIngestionAgent
 from wcbot.models.prediction import Prediction
 from wcbot.utils.formatting import format_prediction
+from wcbot.data.teams import WORLD_CUP_TEAMS_2026, TEAM_CONTINENTS, QUALIFIED_COUNT
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +63,130 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ASK_FOLLOWUP
     elif "model" in lower or "how" in lower:
         return await handle_model_explain(update, context)
+    elif any(w in lower for w in ["which countr", "what countr", "which team", "what team",
+                                   "list team", "list countr", "who is in", "who plays",
+                                   "participat", "qualified team", "all team", "all countr"]):
+        return await handle_teams_question(update, context)
+    elif any(w in lower for w in ["list group", "show group", "group stand", "group table",
+                                   "what are the group", "group a", "group b", "group stage"]):
+        return await handle_list_groups(update, context)
+    elif any(w in lower for w in ["round of 32", "round of thirty", "knockout stage",
+                                   "who advanced", "next round", "ro32", "r32",
+                                   "teams in the round"]):
+        return await handle_round_of_32(update, context)
+    elif any(w in lower for w in ["is ", "are ", "does ", "did ", "has "]) and \
+         any(w in lower for w in ["qualif", "in the world cup", "participat", "play in",
+                                   "competing", "in the tournament"]):
+        return await handle_team_lookup(update, context, text)
     else:
         await update.message.reply_markdown(
             "I'm not sure what you mean. Try:\n"
             "• \"Predict Brazil vs Argentina\"\n"
             "• \"Who will win the World Cup?\"\n"
+            "• \"Which countries are in the World Cup?\"\n"
             "• `/help` for commands"
         )
         return ASK_FOLLOWUP
+
+
+async def handle_teams_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = f"🌍 *2026 World Cup — {QUALIFIED_COUNT} Qualified Teams*\n\n"
+    for continent in ["CONCACAF", "CONMEBOL", "UEFA", "CAF", "AFC", "OFC"]:
+        teams = sorted(t for t in WORLD_CUP_TEAMS_2026 if TEAM_CONTINENTS.get(t) == continent)
+        label = {"CONCACAF": "North/Central America", "CONMEBOL": "South America",
+                 "UEFA": "Europe", "CAF": "Africa", "AFC": "Asia", "OFC": "Oceania"}[continent]
+        text += f"*{label}:* {', '.join(teams)}\n\n"
+    text += "Use `/predict <team> vs <team>` to get AI predictions!"
+    await update.message.reply_markdown(text)
+    return ASK_FOLLOWUP
+
+
+async def handle_list_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    ingestion: DataIngestionAgent = context.bot_data.get("data_ingestion")
+    if not ingestion:
+        await update.message.reply_markdown("Group data is not available.")
+        return ASK_FOLLOWUP
+
+    standings = await ingestion.fetch_standings()
+    if not standings:
+        await update.message.reply_markdown(
+            "Live group standings require a `SPORTS_API_KEY` configured in `.env`.\n\n"
+            "Without it, I can still predict matches — try `/predict Brazil vs Argentina`."
+        )
+        return ASK_FOLLOWUP
+
+    groups = {}
+    for entry in standings:
+        groups.setdefault(entry["group"], []).append(entry)
+
+    text = "📊 *2026 World Cup — Group Standings*\n\n"
+    for g in sorted(groups.keys()):
+        teams = sorted(groups[g], key=lambda t: (-t["points"], -t["goal_diff"]))
+        text += f"*Group {g}:*\n"
+        for t in teams:
+            text += f"  {t['name']} — {t['points']}pts (GD {t['goal_diff']:+d})\n"
+        text += "\n"
+
+    text += "Use `/predict <home> vs <away>` for match predictions!"
+    await update.message.reply_markdown(text)
+    return ASK_FOLLOWUP
+
+
+async def handle_round_of_32(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    ingestion: DataIngestionAgent = context.bot_data.get("data_ingestion")
+    if not ingestion:
+        await update.message.reply_markdown(
+            "Standings data not available yet. Try `/standings` for group tables."
+        )
+        return ASK_FOLLOWUP
+
+    advancing = await ingestion.fetch_round_of_32()
+    if not advancing:
+        await update.message.reply_markdown("Group stage hasn't finished yet — check back later!")
+        return ASK_FOLLOWUP
+
+    text = "🏆 *Round of 32 — Advancing Teams*\n\n"
+    for entry in advancing:
+        flag = {"Brazil": "🇧🇷", "Argentina": "🇦🇷", "France": "🇫🇷", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+                "Germany": "🇩🇪", "Spain": "🇪🇸", "Portugal": "🇵🇹", "Netherlands": "🇳🇱",
+                "Italy": "🇮🇹", "Belgium": "🇧🇪", "Croatia": "🇭🇷", "Uruguay": "🇺🇾",
+                "Colombia": "🇨🇴", "Denmark": "🇩🇰", "Switzerland": "🇨🇭", "Japan": "🇯🇵",
+                "Morocco": "🇲🇦", "Senegal": "🇸🇳", "USA": "🇺🇸", "Mexico": "🇲🇽",
+                "South Korea": "🇰🇷", "Australia": "🇦🇺", "Poland": "🇵🇱", "Serbia": "🇷🇸",
+                "Iran": "🇮🇷", "Ivory Coast": "🇨🇮", "Ghana": "🇬🇭", "Saudi Arabia": "🇸🇦",
+                "Cameroon": "🇨🇲", "Tunisia": "🇹🇳", "Canada": "🇨🇦", "Ecuador": "🇪🇨",
+                "Costa Rica": "🇨🇷", "Wales": "🏴󠁧󠁢󠁷󠁬󠁳󠁿", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+                "Austria": "🇦🇹", "Sweden": "🇸🇪", "Norway": "🇳🇴", "Turkey": "🇹🇷",
+                "Czech Republic": "🇨🇿", "Ukraine": "🇺🇦", "Chile": "🇨🇱", "Paraguay": "🇵🇾",
+                "Egypt": "🇪🇬", "Algeria": "🇩🇿", "New Zealand": "🇳🇿", "Jamaica": "🇯🇲"}.get(entry["name"], "")
+        text += f"{flag} *{entry['group']}* — {entry['name']} ({entry['points']}pts, GD {entry['goal_diff']:+d})\n"
+
+    text += "\nThe knockout stage begins now! Use `/predict <home> vs <away>` to get predictions."
+    await update.message.reply_markdown(text)
+    return ASK_FOLLOWUP
+
+
+async def handle_team_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    words = text.lower().split()
+    team_name = None
+    for team in sorted(WORLD_CUP_TEAMS_2026, key=len, reverse=True):
+        if team.lower() in text.lower():
+            team_name = team
+            break
+
+    if team_name:
+        continent = TEAM_CONTINENTS.get(team_name, "")
+        label = {"CONCACAF": "North/Central America", "CONMEBOL": "South America",
+                 "UEFA": "Europe", "CAF": "Africa", "AFC": "Asia", "OFC": "Oceania"}.get(continent, continent)
+        await update.message.reply_markdown(
+            f"✅ Yes, *{team_name}* is qualified for the 2026 World Cup! ({label})"
+        )
+    else:
+        await update.message.reply_markdown(
+            "❌ That team is not in the 2026 World Cup qualified list. "
+            "Use `/teams` to see all qualified nations."
+        )
+    return ASK_FOLLOWUP
 
 
 async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
@@ -92,6 +210,14 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
     state: StateManagerAgent = context.bot_data["state_manager"]
 
     result = await engine.predict(home, away)
+
+    if result.abstained:
+        await sent.edit_text(
+            f"🤷 *{home} vs {away}* — too close to call confidently.\n\n"
+            f"I need ≥3 of 4 models agreeing at ≥80% confidence to issue a prediction. "
+            f"Try a match with a clearer favourite."
+        )
+        return ASK_FOLLOWUP
 
     pred = Prediction(
         prediction_id=str(uuid4()),
@@ -162,15 +288,18 @@ async def handle_compare_request(update: Update, context: ContextTypes.DEFAULT_T
     p1 = await engine.predict(t1, t2)
     p2 = await engine.predict(t2, t1)
 
-    msg = (
-        f"📊 *{t1} vs {t2} — Comparison*\n\n"
-        f"*{t1} (home):* {p1.winner} {p1.home_score}-{p1.away_score} "
-        f"(conf: {p1.confidence:.0%})\n"
-        f"*{t2} (home):* {p2.winner} {p2.home_score}-{p2.away_score} "
-        f"(conf: {p2.confidence:.0%})\n\n"
-        f"*Key insights:*\n"
-        f"• {p1.reasoning}\n"
-    )
+    if p1.abstained and p2.abstained:
+        msg = f"📊 *{t1} vs {t2} — Comparison*\n\n🤷 Both sides too close to call confidently."
+    else:
+        msg = (
+            f"📊 *{t1} vs {t2} — Comparison*\n\n"
+            f"*{t1} (home):* {p1.winner} {p1.home_score}-{p1.away_score} "
+            f"(conf: {p1.confidence:.0%})\n"
+            f"*{t2} (home):* {p2.winner} {p2.home_score}-{p2.away_score} "
+            f"(conf: {p2.confidence:.0%})\n\n"
+            f"*Key insights:*\n"
+            f"• {p1.reasoning}\n"
+        )
     await update.message.reply_markdown(msg)
 
     keyboard = InlineKeyboardMarkup([

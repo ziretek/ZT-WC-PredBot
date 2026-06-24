@@ -46,7 +46,7 @@ batch_predict([match_list]) → bulk results
 simulate_tournament(iterations=10000, stage) → {champion_pct, top4, dark_horses}
 get_model_card() → {accuracy_by_band, brier_score, log_loss, last_update}
 live_adjust(match_id, event_type, payload) → re-forecast in real time
-backtest(tournament_year) → accuracy, calibration, ROI vs market odds
+backtest() → current 2026 live accuracy, Brier score, matches evaluated
 ```
 
 ## Calibration & Quality Gates

@@ -2,7 +2,7 @@ import re
 
 from telegram import Update
 from telegram.ext import ContextTypes
-from wcbot.agents.prediction_engine import PredictionEngineAgent
+from wcbot.agents.prediction_engine import PredictionEngineAgent, MIN_MODELS_AGREEING, MIN_CONFIDENCE_FOR_PREDICTION
 from wcbot.agents.state_manager import StateManagerAgent
 from wcbot.utils.formatting import format_prediction
 from wcbot.models.prediction import Prediction
@@ -30,6 +30,15 @@ async def predict_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state: StateManagerAgent = context.bot_data["state_manager"]
 
     result = await engine.predict(home, away)
+
+    if result.abstained:
+        await update.message.reply_markdown(
+            f"🤷 *{home} vs {away}* — too close to call confidently.\n\n"
+            f"The ensemble requires ≥{MIN_MODELS_AGREEING} of 4 models agreeing "
+            f"at ≥{MIN_CONFIDENCE_FOR_PREDICTION:.0%} confidence to issue a prediction.\n\n"
+            f"Try a match with a clearer favourite, or use `/simulate` for tournament odds."
+        )
+        return
 
     pred = Prediction(
         prediction_id=str(uuid4()),

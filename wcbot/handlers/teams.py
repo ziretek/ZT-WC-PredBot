@@ -1,29 +1,14 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from wcbot.utils.formatting import format_team_list
+from wcbot.data.teams import WORLD_CUP_TEAMS_2026, TEAM_CONTINENTS, QUALIFIED_COUNT
 
 
 async def teams_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    teams = [
-        {"name": "Brazil", "rating": 95},
-        {"name": "Argentina", "rating": 93},
-        {"name": "France", "rating": 94},
-        {"name": "England", "rating": 90},
-        {"name": "Germany", "rating": 88},
-        {"name": "Spain", "rating": 89},
-        {"name": "Portugal", "rating": 87},
-        {"name": "Netherlands", "rating": 86},
-        {"name": "Belgium", "rating": 84},
-        {"name": "Italy", "rating": 85},
-        {"name": "Croatia", "rating": 82},
-        {"name": "Uruguay", "rating": 81},
-        {"name": "Colombia", "rating": 79},
-        {"name": "Denmark", "rating": 78},
-        {"name": "Switzerland", "rating": 76},
-        {"name": "Japan", "rating": 75},
-        {"name": "Morocco", "rating": 74},
-        {"name": "Senegal", "rating": 73},
-        {"name": "USA", "rating": 72},
-        {"name": "Mexico", "rating": 71},
-    ]
-    await update.message.reply_markdown(format_team_list(teams))
+    text = f"🌍 *2026 World Cup — {QUALIFIED_COUNT} Qualified Teams*\n\n"
+    for continent in ["CONCACAF", "CONMEBOL", "UEFA", "CAF", "AFC", "OFC"]:
+        teams = sorted(t for t in WORLD_CUP_TEAMS_2026 if TEAM_CONTINENTS.get(t) == continent)
+        label = {"CONCACAF": "North/Central America", "CONMEBOL": "South America",
+                 "UEFA": "Europe", "CAF": "Africa", "AFC": "Asia", "OFC": "Oceania"}[continent]
+        text += f"*{label}:* {', '.join(teams)}\n\n"
+    text += f"Use `/predict <home> vs <away>` to get AI predictions!"
+    await update.message.reply_markdown(text)

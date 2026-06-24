@@ -79,7 +79,7 @@ Respond in JSON format with exactly these fields:
 
     def _parse_response(self, llm_resp: dict, home: str, away: str,
                         elo: dict, poisson: dict, gb: dict) -> dict:
-        confidence = min(float(llm_resp.get("confidence", 0.5)), 0.95)
+        confidence = min(float(llm_resp.get("confidence", 0.5)), 0.88)
         return {
             "winner": llm_resp.get("winner", home),
             "home_score": int(llm_resp.get("home_score", 1)),

@@ -13,6 +13,11 @@ logger = logging.getLogger(__name__)
 ENSEMBLE_WEIGHTS_FILE = os.path.join(Config.DATA_DIR, "ensemble_weights.json")
 CALIBRATION_FILE = os.path.join(Config.DATA_DIR, "calibration.json")
 
+# Precision mode: trade coverage for high accuracy
+MIN_CONFIDENCE_FOR_PREDICTION = 0.80
+MIN_MODELS_AGREEING = 3
+MAX_CONFIDENCE = 0.92
+
 
 class PredictionEngineAgent:
     def __init__(self):
@@ -37,7 +42,9 @@ class PredictionEngineAgent:
             home_team, away_team,
             elo_pred, poisson_pred, gb_pred, llm_pred,
         )
-        low_consensus = self._check_consensus(elo_pred, poisson_pred, gb_pred, llm_pred)
+        models_agreeing, low_consensus = self._check_consensus(elo_pred, poisson_pred, gb_pred, llm_pred)
+
+        abstain = self._should_abstain(winner, confidence, models_agreeing)
 
         ensemble = EnsembleBreakdown(
             elo={"winner": elo_pred["winner"], "home_score": elo_pred["home_score"],
@@ -67,11 +74,26 @@ class PredictionEngineAgent:
             reasoning=reasoning,
             model_version=self.model_version,
             low_consensus=low_consensus,
+            abstained=abstain,
             calibration_timestamp=datetime.utcnow(),
         )
 
+    def _should_abstain(self, winner: str, confidence: float, models_agreeing: int) -> bool:
+        if winner == "Draw":
+            return True
+        if models_agreeing < MIN_MODELS_AGREEING:
+            return True
+        if confidence < MIN_CONFIDENCE_FOR_PREDICTION:
+            return True
+        return False
+
     def _ensemble_vote(self, home: str, away: str,
                        elo: dict, poisson: dict, gb: dict, llm: dict) -> tuple:
+        elo_w = self.weights.get("elo", 0.25)
+        poisson_w = self.weights.get("poisson", 0.25)
+        gb_w = self.weights.get("gb", 0.25)
+        llm_w = self.weights.get("llm", 0.15)
+
         winners = {
             "elo": elo["winner"],
             "poisson": poisson["winner"],
@@ -79,10 +101,10 @@ class PredictionEngineAgent:
             "llm": llm["winner"],
         }
         confidences = {
-            "elo": elo["confidence"] * self.weights.get("elo", 0.25),
-            "poisson": poisson["confidence"] * self.weights.get("poisson", 0.25),
-            "gb": gb["confidence"] * self.weights.get("gb", 0.25),
-            "llm": llm["confidence"] * self.weights.get("llm", 0.15),
+            "elo": elo["confidence"] * elo_w,
+            "poisson": poisson["confidence"] * poisson_w,
+            "gb": gb["confidence"] * gb_w,
+            "llm": llm["confidence"] * llm_w,
         }
 
         vote_scores = {}
@@ -91,21 +113,21 @@ class PredictionEngineAgent:
 
         winner = max(vote_scores, key=vote_scores.get)
         total_weighted_conf = sum(confidences.values())
-        confidence = min(vote_scores[winner], 0.95)
+        weight_sum = sum(self.weights.values())
+        confidence = min(vote_scores[winner] / max(weight_sum, 1), MAX_CONFIDENCE)
 
         home_expected = [
-            (elo["home_score"] * 0.4 + elo.get("home_rating", 1500) / 2000.0 * 0.6) * self.weights.get("elo", 0.25),
-            poisson.get("expected_home_goals", 1.5) * self.weights.get("poisson", 0.25),
-            gb["home_score"] * self.weights.get("gb", 0.25),
-            llm["home_score"] * self.weights.get("llm", 0.15),
+            (elo["home_score"] * 0.4 + elo.get("home_rating", 1500) / 2000.0 * 0.6) * elo_w,
+            poisson.get("expected_home_goals", 1.5) * poisson_w,
+            gb["home_score"] * gb_w,
+            llm["home_score"] * llm_w,
         ]
         away_expected = [
-            (elo["away_score"] * 0.4 + elo.get("away_rating", 1500) / 2000.0 * 0.6) * self.weights.get("elo", 0.25),
-            poisson.get("expected_away_goals", 1.0) * self.weights.get("poisson", 0.25),
-            gb["away_score"] * self.weights.get("gb", 0.25),
-            llm["away_score"] * self.weights.get("llm", 0.15),
+            (elo["away_score"] * 0.4 + elo.get("away_rating", 1500) / 2000.0 * 0.6) * elo_w,
+            poisson.get("expected_away_goals", 1.0) * poisson_w,
+            gb["away_score"] * gb_w,
+            llm["away_score"] * llm_w,
         ]
-        weight_sum = sum(self.weights.values())
         raw_home = sum(home_expected) / weight_sum
         raw_away = sum(away_expected) / weight_sum
         home_score = max(0, round(raw_home))
@@ -119,10 +141,14 @@ class PredictionEngineAgent:
 
         return winner, home_score, away_score, confidence
 
-    def _check_consensus(self, elo: dict, poisson: dict, gb: dict, llm: dict) -> bool:
-        winners = {elo["winner"], poisson["winner"], gb["winner"], llm["winner"]}
-        winners.discard("Draw")
-        return len(winners) > 1
+    def _check_consensus(self, elo: dict, poisson: dict, gb: dict, llm: dict) -> tuple:
+        winners = [elo["winner"], poisson["winner"], gb["winner"], llm["winner"]]
+        from collections import Counter
+        counts = Counter(winners)
+        top_winner, top_count = counts.most_common(1)[0]
+        counts.pop("Draw", None)
+        top_non_draw = counts.most_common(1)[0][1] if counts else 0
+        return top_non_draw, top_non_draw < MIN_MODELS_AGREEING
 
     def _build_factors(self, home: str, away: str, elo: dict, poisson: dict, gb: dict, llm: dict) -> list:
         factors = []
@@ -245,8 +271,8 @@ class PredictionEngineAgent:
         return {
             "model_version": self.model_version,
             "accuracy": round(self._calibration.get("correct", 0) / max(self._calibration.get("total", 1), 1), 3),
-            "brier_score": round(self._calibration.get("brier", 0.19), 3),
-            "log_loss": round(self._calibration.get("log_loss", 0.52), 3),
+            "brier_score": round(self._calibration.get("brier", 0.0), 3),
+            "log_loss": round(self._calibration.get("log_loss", 0.0), 3),
             "last_update": datetime.utcnow().isoformat(),
             "calibration_by_band": self._calibration.get("by_band", {}),
             "ensemble_models": ["Elo", "Poisson xG", "Gradient Boosting", "Transformer", "LLM Weighted"],
@@ -255,13 +281,14 @@ class PredictionEngineAgent:
             "elo_matches_recorded": self.elo.match_count,
         }
 
-    async def backtest(self, tournament_year: int = 2022) -> dict:
+    async def backtest(self) -> dict:
+        total = self._calibration.get("total", 0)
+        correct = self._calibration.get("correct", 0)
         return {
-            "tournament_year": tournament_year,
-            "accuracy": 0.64,
-            "brier_score": 0.21,
-            "roi_vs_market": 0.08,
-            "matches_evaluated": 64,
+            "tournament_year": 2026,
+            "accuracy": round(correct / max(total, 1), 3),
+            "brier_score": self._calibration.get("brier", 0.0),
+            "matches_evaluated": total,
         }
 
     def log_feedback(self, prediction_id: str, was_correct: bool, confidence: float = 0.5):
@@ -304,7 +331,7 @@ class PredictionEngineAgent:
                     return json.load(f)
             except Exception:
                 pass
-        return {"total": 0, "correct": 0, "brier": 0.19, "log_loss": 0.52, "by_band": {}}
+        return {"total": 0, "correct": 0, "brier": 0.0, "log_loss": 0.0, "by_band": {}}
 
     def _save_calibration(self):
         os.makedirs(Config.DATA_DIR, exist_ok=True)

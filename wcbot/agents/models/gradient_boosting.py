@@ -53,7 +53,9 @@ class GradientBoostingModel:
                 away_score += 1
 
         confidence = max(prob_home, prob_away, prob_draw)
-        confidence = min(round(confidence, 2), 0.90)
+        if winner == "Draw":
+            confidence *= 0.5
+        confidence = min(round(confidence, 2), 0.85)
 
         return {
             "winner": winner,

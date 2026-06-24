@@ -66,7 +66,9 @@ class PoissonXGModel:
             winner = "Draw"
 
         confidence = max(prob_home_win, prob_away_win, prob_draw)
-        confidence = min(round(confidence, 2), 0.92)
+        if winner == "Draw":
+            confidence *= 0.5
+        confidence = min(round(confidence, 2), 0.85)
 
         return {
             "winner": winner,
@@ -141,7 +143,7 @@ class PoissonXGModel:
             "Serbia": {"attack": 1.0, "defense": 1.2},
             "Australia": {"attack": 0.7, "defense": 1.2},
             "Iran": {"attack": 0.7, "defense": 1.1},
-            "Nigeria": {"attack": 0.8, "defense": 1.1},
+            "Ivory Coast": {"attack": 0.8, "defense": 1.1},
             "Ghana": {"attack": 0.8, "defense": 1.2},
             "Saudi Arabia": {"attack": 0.5, "defense": 1.5},
             "Cameroon": {"attack": 0.7, "defense": 1.3},

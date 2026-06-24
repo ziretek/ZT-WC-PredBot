@@ -63,7 +63,7 @@ class DataIngestionAgent:
             return cached
 
         if not Config.SPORTS_API_KEY:
-            return self._mock_standings()
+            return []
 
         try:
             params = {"api_token": Config.SPORTS_API_KEY}
@@ -105,7 +105,7 @@ class DataIngestionAgent:
             return cached
 
         if not Config.ODDS_API_KEY:
-            return {"home_odds": 2.10, "draw_odds": 3.40, "away_odds": 3.80}
+            return {}
 
         try:
             resp = await self._http_client.get(
@@ -137,19 +137,22 @@ class DataIngestionAgent:
                 return False
         return True
 
-    def _mock_standings(self) -> list:
-        groups = {
-            "A": [("Brazil", 7, 5), ("Croatia", 5, 2), ("Switzerland", 4, 0), ("Cameroon", 0, -7)],
-            "B": [("England", 7, 6), ("USA", 5, 1), ("Iran", 3, -2), ("Wales", 1, -5)],
-            "C": [("Argentina", 6, 4), ("Poland", 4, 1), ("Mexico", 4, -1), ("Saudi Arabia", 3, -4)],
-            "D": [("France", 6, 3), ("Australia", 6, 0), ("Tunisia", 4, -1), ("Denmark", 1, -2)],
-            "E": [("Japan", 6, 1), ("Spain", 4, 6), ("Germany", 4, 1), ("Costa Rica", 3, -8)],
-            "F": [("Morocco", 7, 3), ("Croatia", 5, 2), ("Belgium", 4, 0), ("Canada", 1, -5)],
-            "G": [("Brazil", 6, 2), ("Switzerland", 6, 1), ("Serbia", 4, 0), ("Cameroon", 1, -3)],
-            "H": [("Portugal", 6, 4), ("South Korea", 4, 0), ("Uruguay", 4, 0), ("Ghana", 3, -4)],
-        }
-        return [{"group": g, "name": t, "points": p, "goal_diff": gd}
-                for g, teams in groups.items() for t, p, gd in teams]
+    async def fetch_round_of_32(self) -> list:
+        standings = await self.fetch_standings()
+        if not standings:
+            return []
+
+        groups = {}
+        for entry in standings:
+            g = entry["group"]
+            groups.setdefault(g, []).append(entry)
+
+        advancing = []
+        for g in sorted(groups.keys()):
+            sorted_teams = sorted(groups[g], key=lambda t: (-t["points"], -t["goal_diff"]))
+            advancing.extend(sorted_teams[:2])
+
+        return sorted(advancing, key=lambda t: t["group"])
 
     def _get_cached(self, key: str, ttl: int = 30):
         entry = self._cache.get(key)

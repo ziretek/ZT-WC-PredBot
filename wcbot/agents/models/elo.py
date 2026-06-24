@@ -71,7 +71,9 @@ class EloModel:
                     away_score = as_
 
         confidence = max(exp_home, exp_away, exp_draw)
-        confidence = min(round(confidence, 2), 0.95)
+        if winner == "Draw":
+            confidence *= 0.5
+        confidence = min(round(confidence, 2), 0.88)
 
         return {
             "winner": winner,
@@ -133,7 +135,7 @@ class EloModel:
             "Japan": 1600, "Morocco": 1590, "Senegal": 1580,
             "USA": 1570, "Mexico": 1560, "South Korea": 1550,
             "Australia": 1540, "Poland": 1570, "Serbia": 1560,
-            "Iran": 1530, "Nigeria": 1520, "Ghana": 1510,
+            "Iran": 1530, "Ivory Coast": 1520, "Ghana": 1510,
             "Saudi Arabia": 1480, "Cameroon": 1490, "Tunisia": 1500,
             "Canada": 1510, "Ecuador": 1530, "Costa Rica": 1470,
             "Wales": 1550, "Scotland": 1520, "Austria": 1540,

@@ -23,6 +23,7 @@ class PredictionResult:
     reasoning: str
     model_version: str
     low_consensus: bool = False
+    abstained: bool = False
     calibration_timestamp: Optional[datetime] = None
 
 
