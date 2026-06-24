@@ -14,4 +14,20 @@ async def standings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "The prediction engine works without it — try `/predict Brazil vs Argentina`."
         )
         return
-    await update.message.reply_markdown(format_standings(standings))
+
+    normalized = [
+        normalized_entry
+        for entry in standings
+        if (normalized_entry := ingestion._normalize_standing_entry(entry))
+    ]
+    if not normalized:
+        await update.message.reply_markdown(
+            "📊 *Group Standings*\n\n"
+            "The sports API is reachable, but it did not return World Cup group-table data "
+            "with team names and groups.\n\n"
+            "Try `/simulate` for a tournament outlook or `/predict Brazil vs Argentina` "
+            "for a match prediction."
+        )
+        return
+
+    await update.message.reply_markdown(format_standings(normalized))
