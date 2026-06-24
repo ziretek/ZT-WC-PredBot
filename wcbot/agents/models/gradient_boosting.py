@@ -2,6 +2,7 @@ import json
 import os
 import logging
 from math import exp
+from typing import Optional
 
 from wcbot.config import Config
 
