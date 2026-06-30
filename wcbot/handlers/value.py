@@ -3,13 +3,19 @@ from telegram.ext import ContextTypes
 from wcbot.agents.prediction_engine import PredictionEngineAgent
 from wcbot.agents.data_ingestion import DataIngestionAgent
 from wcbot.utils.teams import normalize_team_name, unknown_team_message
+from wcbot.utils.live_tournament import (
+    fixture_context,
+    format_completed_match,
+    format_unscheduled_match,
+)
 
 
 async def value_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text[len("/value "):].strip()
     if not text or "vs" not in text:
         await update.message.reply_markdown(
-            "Usage: `/value Brazil vs Argentina`\n\n"
+            "Usage: `/value <home> vs <away>`\n\n"
+            "Choose a confirmed match from `/fixtures`.\n\n"
             "Compares model confidence vs market odds to find value picks."
         )
         return
@@ -31,20 +37,30 @@ async def value_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if home == away:
         await update.message.reply_markdown("Choose two different teams.")
         return
-    await update.message.reply_markdown(f"🔍 Analyzing *{home} vs {away}* for value...")
-
     engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
     ingestion: DataIngestionAgent = context.bot_data["data_ingestion"]
 
-    result = await engine.predict(home, away)
+    fixture = await ingestion.find_world_cup_match(home, away)
+    if not fixture:
+        await update.message.reply_markdown(
+            format_unscheduled_match(home, away, await ingestion.fetch_world_cup_events())
+        )
+        return
+    if fixture.get("status") == "completed":
+        await update.message.reply_markdown(format_completed_match(fixture))
+        return
+
+    home = fixture["home_team"]
+    away = fixture["away_team"]
+    await update.message.reply_markdown(f"🔍 Analyzing *{home} vs {away}* for value...")
+    result = await engine.predict(home, away, fixture_context(fixture))
     if result.abstained:
         await update.message.reply_markdown(
             f"🤷 *{home} vs {away}* — too close to call confidently. No value analysis available."
         )
         return
 
-    match_id = f"{home.lower()}-{away.lower()}"
-    odds = await ingestion.fetch_odds(match_id)
+    odds = fixture
 
     msg = (
         f"💰 *Value Analysis: {home} vs {away}*\n\n"

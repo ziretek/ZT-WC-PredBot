@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 ENSEMBLE_WEIGHTS_FILE = os.path.join(Config.DATA_DIR, "ensemble_weights.json")
 CALIBRATION_FILE = os.path.join(Config.DATA_DIR, "calibration.json")
+WORLD_CUP_RESULTS_FILE = os.path.join(Config.DATA_DIR, "world_cup_results.json")
 
 # A 55% ensemble edge is meaningful in a three-way football market. Higher
 # thresholds made even unanimous model votes appear as refusals.
@@ -22,7 +23,7 @@ MAX_CONFIDENCE = 0.92
 
 class PredictionEngineAgent:
     def __init__(self):
-        self.model_version = "zt-wcpredbot-2.0.0"
+        self.model_version = "zt-wcpredbot-3.0.0"
         self.elo = EloModel()
         self.poisson = PoissonXGModel()
         self.gb = GradientBoostingModel()
@@ -211,7 +212,7 @@ class PredictionEngineAgent:
                          elo: dict, poisson: dict, gb: dict, llm: dict) -> str:
         llm_reasoning = llm.get("reasoning", "")
         if llm_reasoning and llm_reasoning != "LLM not available. Ensemble average used.":
-            return llm_reasoning[:300]
+            return self._trim_reasoning(llm_reasoning)
 
         reasons = []
         elo_diff = elo.get("home_rating", 1500) - elo.get("away_rating", 1500)
@@ -230,6 +231,17 @@ class PredictionEngineAgent:
             return f"{home} and {away} are closely matched. Small margins expected."
 
         return f"{winner} favoured. " + " and ".join(reasons) + ". The ensemble model weights these factors accordingly."
+
+    @staticmethod
+    def _trim_reasoning(reasoning: str, limit: int = 600) -> str:
+        reasoning = " ".join(reasoning.split())
+        if len(reasoning) <= limit:
+            return reasoning
+        clipped = reasoning[:limit]
+        sentence_end = max(clipped.rfind(". "), clipped.rfind("! "), clipped.rfind("? "))
+        if sentence_end >= 200:
+            return clipped[:sentence_end + 1]
+        return clipped.rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
 
     async def simulate_tournament(self, iterations: int = 10000, stage: Optional[str] = None) -> dict:
         all_teams = list(self.elo.ratings.keys())
@@ -328,6 +340,46 @@ class PredictionEngineAgent:
     def resolve_match(self, home: str, away: str, home_score: int, away_score: int):
         self.elo.update_ratings(home, away, home_score, away_score)
         self.poisson.update_params(home, away, home_score, away_score)
+
+    def sync_completed_matches(self, matches: list, processed_path: Optional[str] = None) -> int:
+        path = processed_path or WORLD_CUP_RESULTS_FILE
+        processed = set()
+        if os.path.exists(path):
+            try:
+                with open(path) as file:
+                    processed = set(json.load(file))
+            except (OSError, ValueError, TypeError):
+                logger.warning("Could not read processed World Cup results from %s", path)
+
+        synced = 0
+        for match in matches:
+            match_id = match.get("id")
+            home_score = match.get("home_score")
+            away_score = match.get("away_score")
+            if (
+                not match_id
+                or match_id in processed
+                or match.get("status") != "completed"
+                or home_score is None
+                or away_score is None
+            ):
+                continue
+            self.resolve_match(
+                match["home_team"],
+                match["away_team"],
+                int(home_score),
+                int(away_score),
+            )
+            processed.add(match_id)
+            synced += 1
+
+        if synced:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            temp_path = f"{path}.tmp"
+            with open(temp_path, "w") as file:
+                json.dump(sorted(processed), file, indent=2)
+            os.replace(temp_path, path)
+        return synced
 
     def _load_ensemble_weights(self) -> dict:
         if os.path.exists(ENSEMBLE_WEIGHTS_FILE):

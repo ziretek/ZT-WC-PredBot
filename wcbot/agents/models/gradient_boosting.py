@@ -82,6 +82,10 @@ class GradientBoostingModel:
             "away_defense": poisson_pred.get("away_defense", 1.0),
             "rest_days_diff": features.get("rest_days_diff", 0),
             "home_advantage": 1.0,
+            "market_home_edge": (
+                features.get("market_home_prob", 0.0)
+                - features.get("market_away_prob", 0.0)
+            ),
         }
 
     def _score_features(self, fv: dict) -> float:
@@ -93,6 +97,7 @@ class GradientBoostingModel:
         score += fv["home_attack"] * self.weights["home_attack"]
         score += fv["rest_days_diff"] * self.weights["rest_days"]
         score += fv["home_advantage"] * self.weights["home_advantage"]
+        score += fv["market_home_edge"] * self.weights.get("market_home_edge", 0.80)
         return score
 
     def _top_features(self, fv: dict) -> list:
@@ -124,6 +129,7 @@ class GradientBoostingModel:
             "home_attack": 0.20,
             "rest_days": 0.10,
             "home_advantage": 0.15,
+            "market_home_edge": 0.80,
         }
 
     def _load(self) -> dict:

@@ -20,7 +20,10 @@ class _FakeUpdate:
 
 
 class _FakeIngestion:
-    async def fetch_round_of_32(self):
+    async def fetch_world_cup_events(self):
+        return []
+
+    async def fetch_world_cup_scores(self):
         return []
 
 

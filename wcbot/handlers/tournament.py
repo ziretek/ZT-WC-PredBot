@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes
 
 from wcbot.agents.data_ingestion import DataIngestionAgent
 from wcbot.agents.prediction_engine import PredictionEngineAgent
-from wcbot.utils.formatting import format_simulation
+from wcbot.utils.live_tournament import format_kickoff, format_winner_market
 
 
 def is_round_of_32_request(text: str) -> bool:
@@ -28,42 +28,53 @@ async def round32_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def reply_round_of_32(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ingestion: DataIngestionAgent = context.bot_data["data_ingestion"]
-    engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
 
     await update.message.reply_markdown("🏆 Checking Round of 32 picture...")
-    advancing = await ingestion.fetch_round_of_32()
+    fixtures = await ingestion.fetch_world_cup_events()
+    recent = [match for match in await ingestion.fetch_world_cup_scores() if match.get("status") == "completed"]
 
-    if advancing:
-        text = "🏆 *Round of 32 — Advancing Teams*\n\n"
-        for entry in advancing:
-            text += (
-                f"*{entry.get('group', '?')}* — {entry.get('name', 'Unknown')} "
-                f"({entry.get('points', 0)}pts, GD {entry.get('goal_diff', 0):+d})\n"
-            )
-        text += "\nUse `/predict <home> vs <away>` for match predictions."
-        await update.message.reply_markdown(text)
+    if fixtures or recent:
+        lines = ["🏆 *Current World Cup Knockout Picture*", ""]
+        if recent:
+            lines.append("*Recent results:*" )
+            for match in recent[:6]:
+                lines.append(
+                    f"• {match['home_team']} {match.get('home_score', '?')}–"
+                    f"{match.get('away_score', '?')} {match['away_team']}"
+                )
+            lines.append("")
+        if fixtures:
+            lines.append("*Confirmed upcoming fixtures:*")
+            for fixture in fixtures[:12]:
+                lines.append(
+                    f"• {fixture['home_team']} vs {fixture['away_team']} — "
+                    f"{format_kickoff(fixture.get('commence_time', ''))}"
+                )
+        lines.extend([
+            "",
+            "The provider does not label round stages, so this is the current live knockout feed rather than a guessed bracket.",
+            "Use `/fixtures` for the complete upcoming list.",
+        ])
+        await update.message.reply_markdown("\n".join(lines))
         return
 
-    if engine and engine.llm:
-        llm_answer = await engine.llm.answer_question(
-            "Give a concise Round of 32 outlook for the 2026 World Cup. "
-            "If live standings are unavailable, say this is an outlook, not confirmed standings."
-        )
-        if llm_answer:
-            await update.message.reply_markdown(llm_answer)
-            return
-
     await update.message.reply_markdown(
-        "I can predict individual matches with `/predict Brazil vs Argentina`, "
-        "but Round of 32 standings require live group data from `SPORTS_API_KEY`.\n\n"
-        "Try `/winner` for champion odds or `/simulate` for tournament odds."
+        "🏆 *Round of 32*\n\nThe live World Cup fixture feed is unavailable right now.\n\n"
+        "Try `/fixtures` again shortly or use `/winner` for the current outright market."
     )
 
 
 async def winner_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    ingestion: DataIngestionAgent = context.bot_data["data_ingestion"]
     engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
 
-    await update.message.reply_markdown("🏆 Forecasting likely World Cup winners...")
+    await update.message.reply_markdown("🏆 Loading current World Cup winner market...")
+    market = await ingestion.fetch_world_cup_winner_odds()
+    if market:
+        await update.message.reply_markdown(format_winner_market(market))
+        return
+
+    await update.message.reply_markdown("Live winner odds unavailable; running model simulation...")
     results = await engine.simulate_tournament(iterations=10000)
     champion_pct = results.get("champion_pct", {})
 
@@ -85,7 +96,4 @@ async def winner_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def tournament_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
-    await update.message.reply_markdown("🎲 Running tournament forecast...")
-    results = await engine.simulate_tournament(iterations=10000)
-    await update.message.reply_markdown(format_simulation(results))
+    await winner_handler(update, context)

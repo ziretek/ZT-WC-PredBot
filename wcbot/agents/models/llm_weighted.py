@@ -45,7 +45,14 @@ Poisson xG Model:
 Gradient Boosting:
 - Home win prob: {gb.get('home_win_prob', 0):.0%}
 
-Context: World Cup 2026 match.
+Live tournament context:
+- Confirmed fixture: {features.get('confirmed_fixture', False)}
+- Kickoff (UTC): {features.get('commence_time', 'unknown')}
+- Market probabilities: {home} {features.get('market_home_prob', 0):.0%}, Draw {features.get('market_draw_prob', 0):.0%}, {away} {features.get('market_away_prob', 0):.0%}
+- Bookmakers sampled: {features.get('bookmaker_count', 0)}
+- Live score when available: {features.get('live_home_score', 'not started')} - {features.get('live_away_score', 'not started')}
+
+Use only the supplied live context. Do not invent injuries, lineups, results, or tournament facts.
 
 Respond in JSON format with exactly these fields:
 {{"winner": "<team or Draw>", "home_score": <int>, "away_score": <int>, "confidence": <0.0-1.0>, "reasoning": "<2 sentence analysis>", "key_factors": ["<factor1>", "<factor2>", "<factor3>"]}}"""

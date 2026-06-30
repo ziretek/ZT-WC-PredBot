@@ -2,8 +2,10 @@ import re
 
 from telegram import Update
 from telegram.ext import ContextTypes
+from wcbot.agents.data_ingestion import DataIngestionAgent
 from wcbot.realtime import RealtimeEngine
 from wcbot.utils.teams import normalize_team_name, unknown_team_message
+from wcbot.utils.live_tournament import format_completed_match, format_unscheduled_match
 
 
 async def track_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -11,8 +13,8 @@ async def track_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text or "vs" not in text:
         await update.message.reply_markdown(
             "Usage: `/track Brazil vs Argentina`\n\n"
-            "Starts live monitoring for this match — score changes, odds swings, "
-            "lineup confirmations, and auto re-forecasts."
+            "Starts monitoring a confirmed match for score changes, odds swings, "
+            "and model updates."
         )
         return
 
@@ -32,7 +34,20 @@ async def track_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if home == away:
         await update.message.reply_markdown("Choose two different teams.")
         return
-    match_id = f"{home.lower()}-{away.lower()}"
+    ingestion: DataIngestionAgent = context.bot_data["data_ingestion"]
+    fixture = await ingestion.find_world_cup_match(home, away)
+    if not fixture:
+        await update.message.reply_markdown(
+            format_unscheduled_match(home, away, await ingestion.fetch_world_cup_events())
+        )
+        return
+    if fixture.get("status") == "completed":
+        await update.message.reply_markdown(format_completed_match(fixture))
+        return
+
+    home = fixture["home_team"]
+    away = fixture["away_team"]
+    match_id = fixture["id"]
 
     realtime: RealtimeEngine = context.bot_data["realtime"]
     realtime.track_match(match_id, home, away)
@@ -41,9 +56,9 @@ async def track_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔴 *Live Tracking Enabled*\n\n"
         f"Now monitoring *{home} vs {away}* in real-time.\n\n"
         f"• Score changes → push alert to subscribers\n"
-        f"• Lineup confirmations → auto-notify\n"
         f"• Odds swings >15% → alert with details\n"
         f"• Match end → Elo ratings auto-updated\n\n"
+        f"Tracking uses the confirmed FIFA World Cup event ID.\n\n"
         f"Use `/subscribe {home}` or `/subscribe {away}` to get alerts."
     )
 

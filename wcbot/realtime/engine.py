@@ -6,6 +6,7 @@ from wcbot.realtime.live_match_tracker import LiveMatchTracker
 from wcbot.realtime.odds_monitor import OddsMonitor
 from wcbot.realtime.lineup_watcher import LineupWatcher
 from wcbot.realtime.push_notifier import PushNotifier
+from wcbot.utils.live_tournament import fixture_context
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,6 @@ class RealtimeEngine:
     def track_match(self, match_id: str, home: str, away: str):
         self.match_tracker.track_match(match_id, home, away)
         self.odds_monitor.track_match(match_id)
-        self.lineup_watcher.track_match(match_id)
         logger.info(f"Realtime tracking enabled for {home} vs {away} ({match_id})")
 
     async def _run_loop(self):
@@ -70,7 +70,15 @@ class RealtimeEngine:
         if event_type == "score.changed":
             logger.info(f"Score: {event['home']} {event['new_home']}-{event['new_away']} {event['away']}")
             if self._prediction_engine:
-                new_pred = await self._prediction_engine.predict(event["home"], event["away"])
+                fixture = None
+                if self._data_ingestion:
+                    fixture = await self._data_ingestion.find_world_cup_match(event["home"], event["away"])
+                context = fixture_context(fixture) if fixture else {}
+                context.update({
+                    "live_home_score": event["new_home"],
+                    "live_away_score": event["new_away"],
+                })
+                new_pred = await self._prediction_engine.predict(event["home"], event["away"], context)
                 if new_pred.confidence > 0.6:
                     event["re_forecast"] = {
                         "winner": new_pred.winner,

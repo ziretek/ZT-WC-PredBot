@@ -159,10 +159,12 @@ def format_help() -> str:
     return (
         "⚽ *ZT WC PredBot — 2026 World Cup Predictions*\n\n"
         "*Commands:*\n"
-        "`/predict <home> vs <away>` — Get AI prediction\n"
+        "`/predict <home> vs <away>` — Predict a confirmed fixture\n"
         "`/predict round of 32` — Round of 32 outlook\n"
         "`/round32` — Round of 32 outlook\n"
         "`/winner` — World Cup winner forecast\n"
+        "`/fixtures` — Confirmed upcoming matches\n"
+        "`/results` — Recent tournament results\n"
         "`/predictions` — Your prediction history\n"
         "`/leaderboard` — Global rankings\n"
         "`/standings` — Group tables\n"

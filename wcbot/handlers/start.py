@@ -22,5 +22,5 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"AI-powered predictions for the 2026 World Cup.\n"
         f"Powered by a 4-model ensemble plus optional LLM reasoning.\n\n"
         f"{format_model_card(card)}\n\n"
-        f"Try `/predict Brazil vs Argentina`, `/round32`, or `/winner` to start!"
+        f"Start with `/fixtures`, then predict a confirmed match with `/predict <home> vs <away>`."
     )

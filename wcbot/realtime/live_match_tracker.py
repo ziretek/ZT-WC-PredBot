@@ -92,6 +92,10 @@ class LiveMatchTracker:
 
         new_home = raw.get("home_score", state.home_score)
         new_away = raw.get("away_score", state.away_score)
+        if new_home is None:
+            new_home = state.home_score
+        if new_away is None:
+            new_away = state.away_score
         if new_home != state.home_score or new_away != state.away_score:
             events.append({
                 "type": "score.changed",

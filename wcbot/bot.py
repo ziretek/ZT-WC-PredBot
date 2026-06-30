@@ -32,6 +32,8 @@ from wcbot.handlers import (
     round32_handler,
     winner_handler,
     tournament_handler,
+    fixtures_handler,
+    results_handler,
     get_chat_conversation_handler,
     handle_message,
     cancel_global,
@@ -71,12 +73,19 @@ async def post_init(app: Application):
     else:
         logger.info("Realtime engine disabled (no API keys — predictions use built-in data)")
 
+    if Config.ODDS_API_KEY:
+        recent_scores = await ingestion.fetch_world_cup_scores()
+        synced = engine.sync_completed_matches(recent_scores)
+        logger.info("Synced %s new completed World Cup matches into the models", synced)
+
     try:
         await app.bot.set_my_commands([
             BotCommand("start", "Start the bot and show model status"),
             BotCommand("predict", "Predict a match or ask for round of 32"),
             BotCommand("round32", "Round of 32 outlook"),
             BotCommand("winner", "World Cup winner forecast"),
+            BotCommand("fixtures", "Confirmed upcoming World Cup matches"),
+            BotCommand("results", "Recent World Cup results"),
             BotCommand("simulate", "Tournament simulation"),
             BotCommand("teams", "Supported teams"),
             BotCommand("standings", "Group standings if live data is available"),
@@ -127,6 +136,8 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("round32", round32_handler))
     app.add_handler(CommandHandler("winner", winner_handler))
     app.add_handler(CommandHandler("champion", winner_handler))
+    app.add_handler(CommandHandler("fixtures", fixtures_handler))
+    app.add_handler(CommandHandler("results", results_handler))
     app.add_handler(CommandHandler("model", model_handler))
     app.add_handler(CommandHandler("insights", insights_handler))
     app.add_handler(CommandHandler("subscribe", subscribe_handler))

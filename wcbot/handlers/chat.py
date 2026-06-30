@@ -14,10 +14,18 @@ from wcbot.agents.prediction_engine import (
 )
 from wcbot.agents.state_manager import StateManagerAgent
 from wcbot.agents.data_ingestion import DataIngestionAgent
-from wcbot.handlers.tournament import is_round_of_32_request
+from wcbot.handlers.tournament import is_round_of_32_request, reply_round_of_32
+from wcbot.handlers.live_tournament import fixtures_handler, results_handler
 from wcbot.models.prediction import Prediction
 from wcbot.utils.formatting import format_prediction, format_tentative_prediction
 from wcbot.utils.teams import normalize_team_name, unknown_team_message
+from wcbot.utils.live_tournament import (
+    fixture_context,
+    format_completed_match,
+    format_live_fixture_note,
+    format_unscheduled_match,
+    format_winner_market,
+)
 from wcbot.data.teams import WORLD_CUP_TEAMS_2026, TEAM_CONTINENTS, QUALIFIED_COUNT
 
 logger = logging.getLogger(__name__)
@@ -32,7 +40,8 @@ async def chat_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💬 *Chat Mode*\n\n"
         "I can help you with predictions conversationally.\n\n"
         "*Examples:*\n"
-        "• \"Predict Brazil vs Argentina\"\n"
+        "• \"Show upcoming fixtures\"\n"
+        "• \"Predict a match from /fixtures\"\n"
         "• \"Who will win the World Cup?\"\n"
         "• \"Compare France and England\"\n"
         "• \"Explain the model\"\n\n"
@@ -47,6 +56,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     lower = text.lower()
 
+    if any(word in lower for word in ["fixture", "upcoming match", "next match", "games today", "matches today"]):
+        await fixtures_handler(update, context)
+        return ASK_FOLLOWUP
+    if any(word in lower for word in ["recent result", "latest result", "scores", "results"]):
+        await results_handler(update, context)
+        return ASK_FOLLOWUP
     if is_round_of_32_request(text) or any(w in lower for w in ["who advanced", "teams in the round"]):
         return await handle_round_of_32(update, context)
     elif "compare" in lower:
@@ -58,13 +73,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif lower.strip() in ("hello", "hi", "hey", "hello!", "hi!", "hey!") or \
          lower.startswith("hello ") or lower.startswith("hi ") or lower.startswith("hey "):
         await update.message.reply_markdown(
-            "Hello! 👋 Want a World Cup prediction? Just say *\"Predict Brazil vs Argentina\"*"
+            "Hello! 👋 Use `/fixtures` to see confirmed matches, then ask me to predict one."
         )
         return ASK_FOLLOWUP
     elif "help" in lower or "what can" in lower:
         await update.message.reply_markdown(
             "Ask me anything about the 2026 World Cup!\n\n"
-            "• `Predict Brazil vs Argentina`\n"
+            "• `/fixtures`\n"
+            "• `Predict <home> vs <away>`\n"
             "• `Who wins the tournament?`\n"
             "• `Compare France vs England`\n"
             "• `Explain how you predict`"
@@ -92,8 +108,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_markdown(
             "I'm *ZT WC PredBot* ⚽ — your AI assistant for the 2026 World Cup!\n\n"
             "I can predict matches using a 4-model ensemble (Elo, Poisson xG, Gradient Boosting, LLM), "
-            "show group standings, list qualified teams, simulate the tournament, and answer your WC questions.\n\n"
-            "Try `/predict Brazil vs Argentina` or just chat with me!"
+            "show verified fixtures and results, list teams, track live markets, and answer your WC questions.\n\n"
+            "Try `/fixtures` or just chat with me!"
         )
         return ASK_FOLLOWUP
     elif any(w in lower for w in ["where is", "where will", "where are", "which country",
@@ -115,7 +131,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_markdown(
                 "I'm not sure what you mean. Try:\n"
-                "• \"Predict Brazil vs Argentina\"\n"
+                "• `/fixtures`, then predict a confirmed match\n"
                 "• \"Who will win the World Cup?\"\n"
                 "• \"Which countries are in the World Cup?\"\n"
                 "• `/help` for commands"
@@ -136,80 +152,16 @@ async def handle_teams_question(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def handle_list_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ingestion: DataIngestionAgent = context.bot_data.get("data_ingestion")
-    if not ingestion:
-        await update.message.reply_markdown("Group data is not available.")
-        return ASK_FOLLOWUP
-
-    standings = await ingestion.fetch_standings()
-    if not standings:
-        await update.message.reply_markdown(
-            "Live group standings require a `SPORTS_API_KEY` configured in `.env`.\n\n"
-            "Without it, I can still predict matches — try `/predict Brazil vs Argentina`."
-        )
-        return ASK_FOLLOWUP
-
-    groups = {}
-    for entry in standings:
-        groups.setdefault(entry["group"], []).append(entry)
-
-    text = "📊 *2026 World Cup — Group Standings*\n\n"
-    for g in sorted(groups.keys()):
-        teams = sorted(groups[g], key=lambda t: (-t["points"], -t["goal_diff"]))
-        text += f"*Group {g}:*\n"
-        for t in teams:
-            text += f"  {t['name']} — {t['points']}pts (GD {t['goal_diff']:+d})\n"
-        text += "\n"
-
-    text += "Use `/predict <home> vs <away>` for match predictions!"
-    await update.message.reply_markdown(text)
+    await update.message.reply_markdown(
+        "📊 *2026 World Cup Standings*\n\n"
+        "The configured live provider supplies fixtures, scores and markets, but not official group tables. "
+        "I will not invent standings.\n\nUse `/results`, `/fixtures`, or `/round32` for verified tournament data."
+    )
     return ASK_FOLLOWUP
 
 
 async def handle_round_of_32(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ingestion: DataIngestionAgent = context.bot_data.get("data_ingestion")
-    if not ingestion:
-        await update.message.reply_markdown(
-            "Standings data not available yet. Try `/standings` for group tables."
-        )
-        return ASK_FOLLOWUP
-
-    advancing = await ingestion.fetch_round_of_32()
-    if not advancing:
-        engine: PredictionEngineAgent = context.bot_data.get("prediction_engine")
-        if engine and engine.llm:
-            llm_answer = await engine.llm.answer_question("Which teams are in the round of 32 of the 2026 World Cup?")
-            if llm_answer:
-                await update.message.reply_markdown(llm_answer)
-                return ASK_FOLLOWUP
-        await update.message.reply_markdown(
-            "Round of 32 standings require live group data from `SPORTS_API_KEY`.\n\n"
-            "Try `/simulate` for a tournament outlook, or `/predict Brazil vs Argentina` "
-            "for an individual match prediction."
-        )
-        return ASK_FOLLOWUP
-
-    text = "🏆 *Round of 32 — Advancing Teams*\n\n"
-    for entry in advancing:
-        flag = {"Algeria": "🇩🇿", "Argentina": "🇦🇷", "Australia": "🇦🇺", "Austria": "🇦🇹",
-                "Belgium": "🇧🇪", "Bosnia and Herzegovina": "🇧🇦", "Brazil": "🇧🇷", "Canada": "🇨🇦",
-                "Cape Verde": "🇨🇻", "Colombia": "🇨🇴", "Croatia": "🇭🇷", "Curaçao": "🇨🇼",
-                "Czech Republic": "🇨🇿", "DR Congo": "🇨🇩", "Ecuador": "🇪🇨",
-                "Egypt": "🇪🇬", "England": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "France": "🇫🇷",
-                "Germany": "🇩🇪", "Ghana": "🇬🇭", "Haiti": "🇭🇹", "Iran": "🇮🇷",
-                "Iraq": "🇮🇶", "Ivory Coast": "🇨🇮", "Japan": "🇯🇵", "Jordan": "🇯🇴",
-                "Mexico": "🇲🇽", "Morocco": "🇲🇦", "Netherlands": "🇳🇱",
-                "New Zealand": "🇳🇿", "Norway": "🇳🇴", "Panama": "🇵🇦",
-                "Paraguay": "🇵🇾", "Portugal": "🇵🇹", "Qatar": "🇶🇦",
-                "Saudi Arabia": "🇸🇦", "Scotland": "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "Senegal": "🇸🇳",
-                "South Africa": "🇿🇦", "South Korea": "🇰🇷", "Spain": "🇪🇸",
-                "Sweden": "🇸🇪", "Switzerland": "🇨🇭", "Tunisia": "🇹🇳",
-                "Turkey": "🇹🇷", "United States": "🇺🇸", "Uruguay": "🇺🇾",
-                "Uzbekistan": "🇺🇿"}.get(entry["name"], "")
-        text += f"{flag} *{entry['group']}* — {entry['name']} ({entry['points']}pts, GD {entry['goal_diff']:+d})\n"
-
-    text += "\nThe knockout stage begins now! Use `/predict <home> vs <away>` to get predictions."
-    await update.message.reply_markdown(text)
+    await reply_round_of_32(update, context)
     return ASK_FOLLOWUP
 
 
@@ -245,7 +197,7 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
 
     if " vs " not in text:
         await update.message.reply_markdown(
-            "Which match do you want me to predict? Say *\"Brazil vs Argentina\"*.\n\n"
+            "Which match do you want me to predict? Choose one from `/fixtures`.\n\n"
             "For knockout qualification, say *\"round of 32\"*."
         )
         return ASK_HOME
@@ -267,6 +219,18 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_markdown("Choose two different teams.")
         return ASK_FOLLOWUP
 
+    ingestion: DataIngestionAgent = context.bot_data["data_ingestion"]
+    fixture = await ingestion.find_world_cup_match(home, away)
+    if not fixture:
+        upcoming = await ingestion.fetch_world_cup_events()
+        await update.message.reply_markdown(format_unscheduled_match(home, away, upcoming))
+        return ASK_FOLLOWUP
+    if fixture.get("status") == "completed":
+        await update.message.reply_markdown(format_completed_match(fixture))
+        return ASK_FOLLOWUP
+
+    home = fixture["home_team"]
+    away = fixture["away_team"]
     sent = await update.message.reply_markdown(f"🧠 Analyzing *{home} vs {away}*...")
 
     engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
@@ -279,7 +243,7 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
         language=user.language_code or "en",
     )
 
-    result = await engine.predict(home, away)
+    result = await engine.predict(home, away, fixture_context(fixture))
 
     if result.abstained:
         await sent.edit_text(
@@ -289,12 +253,13 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
                 away,
                 MIN_MODELS_AGREEING,
                 MIN_CONFIDENCE_FOR_PREDICTION,
-            ),
+            ) + format_live_fixture_note(fixture),
             parse_mode="Markdown",
         )
         context.user_data["last_home"] = home
         context.user_data["last_away"] = away
         context.user_data["last_prediction"] = result
+        context.user_data["last_fixture"] = fixture
         return ASK_FOLLOWUP
 
     pred = Prediction(
@@ -311,14 +276,17 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
     )
     await state.save_prediction(update.effective_user.id, pred.match_id, pred)
 
-    await sent.edit_text(format_prediction(result, home, away), parse_mode="Markdown")
+    await sent.edit_text(
+        format_prediction(result, home, away) + format_live_fixture_note(fixture),
+        parse_mode="Markdown",
+    )
 
     context.user_data["last_home"] = home
     context.user_data["last_away"] = away
     context.user_data["last_prediction"] = result
+    context.user_data["last_fixture"] = fixture
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔁 Swap teams", callback_data="swap")],
         [InlineKeyboardButton("📊 Detailed comparison", callback_data="deep_dive")],
         [InlineKeyboardButton("🎲 Simulate tournament", callback_data="simulate")],
         [InlineKeyboardButton("❓ Ask something else", callback_data="new_question")],
@@ -330,6 +298,12 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def handle_simulation_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    ingestion: DataIngestionAgent = context.bot_data["data_ingestion"]
+    market = await ingestion.fetch_world_cup_winner_odds()
+    if market:
+        await update.message.reply_markdown(format_winner_market(market, "Ongoing Tournament Forecast"))
+        return ASK_FOLLOWUP
+
     engine: PredictionEngineAgent = context.bot_data["prediction_engine"]
     await update.message.reply_markdown("🎲 Running 10,000 tournament simulations...")
     results = await engine.simulate_tournament(iterations=10000)
@@ -432,25 +406,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == "swap":
-        home = context.user_data.get("last_away")
-        away = context.user_data.get("last_home")
-        if home and away:
-            await query.edit_message_text(f"🔄 Swapping... analyzing *{home} vs {away}*")
-            engine = context.bot_data["prediction_engine"]
-            result = await engine.predict(home, away)
-            await query.edit_message_text(
-                format_prediction(result, home, away),
-                parse_mode="Markdown",
-            )
-            context.user_data["last_home"] = home
-            context.user_data["last_away"] = away
-            context.user_data["last_prediction"] = result
+        await query.edit_message_text(
+            "Confirmed World Cup fixtures keep the provider's official home/away order. "
+            "Use `/fixtures` to choose another match."
+        )
 
     elif data == "deep_dive":
         home = context.user_data.get("last_home", "?")
         away = context.user_data.get("last_away", "?")
-        engine = context.bot_data["prediction_engine"]
-        result = await engine.predict(home, away)
+        result = context.user_data.get("last_prediction")
+        if not result:
+            fixture = context.user_data.get("last_fixture", {})
+            engine = context.bot_data["prediction_engine"]
+            result = await engine.predict(home, away, fixture_context(fixture) if fixture else {})
         parts = [
             f"📊 *Deep Dive: {home} vs {away}*\n",
             "*Ensemble Breakdown:*",
@@ -477,15 +445,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("\n".join(parts), parse_mode="Markdown")
 
     elif data == "simulate":
-        await query.edit_message_text("🎲 Running 10,000 simulations...")
-        engine = context.bot_data["prediction_engine"]
-        results = await engine.simulate_tournament(iterations=10000)
-        from wcbot.utils.formatting import format_simulation
-        await query.edit_message_text(format_simulation(results), parse_mode="Markdown")
+        ingestion: DataIngestionAgent = context.bot_data["data_ingestion"]
+        market = await ingestion.fetch_world_cup_winner_odds()
+        if market:
+            await query.edit_message_text(
+                format_winner_market(market, "Ongoing Tournament Forecast"),
+                parse_mode="Markdown",
+            )
+        else:
+            await query.edit_message_text("🎲 Running 10,000 simulations...")
+            engine = context.bot_data["prediction_engine"]
+            results = await engine.simulate_tournament(iterations=10000)
+            from wcbot.utils.formatting import format_simulation
+            await query.edit_message_text(format_simulation(results), parse_mode="Markdown")
 
     elif data == "predict":
         await query.edit_message_text(
-            "Which match? Say *\"Predict Brazil vs Argentina\"*"
+            "Which match? Choose one from `/fixtures`, then say `Predict <home> vs <away>`."
         )
         return ASK_HOME
 
