@@ -13,7 +13,7 @@ The bot is designed as a practical prediction assistant: users can request match
 - **Feature-weighted model** that combines Elo, Poisson, rest/context features, and home advantage into a third forecast.
 - **Optional LLM reasoning** through an OpenAI-compatible chat-completions API. The default config points at DeepSeek, but the API URL and model are configurable.
 - **Ensemble voting** with configurable model weights.
-- **Abstention mode** for low-confidence or low-consensus matches. By default, the bot requires at least 3 of 4 models to agree and at least 80% ensemble confidence before issuing a saved prediction.
+- **Confidence-aware predictions** for every valid matchup. The bot labels picks below 3-of-4 model agreement or 55% ensemble confidence as tentative and only saves predictions that clear both checks.
 - **Tentative lean mode** for close matches. When the bot refuses to save an official pick, it still shows the model lean, scoreline, confidence, and reasoning.
 - **Team normalization** for common aliases such as `USA`, `USMNT`, `Korea Republic`, `Cote d'Ivoire`, and `Curacao`.
 

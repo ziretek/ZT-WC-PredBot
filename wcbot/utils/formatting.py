@@ -52,18 +52,19 @@ def format_prediction(result: PredictionResult, home: str, away: str) -> str:
 def format_tentative_prediction(result: PredictionResult, home: str, away: str,
                                 min_models: int, min_confidence: float) -> str:
     parts = [
-        f"🤷 *{home} vs {away}* — no official pick.",
+        f"🎯 *{home} vs {away}*",
         "",
-        f"*Tentative lean:* {result.winner} ({result.home_score}–{result.away_score})",
+        f"*Prediction (low confidence):* {result.winner} "
+        f"({result.home_score}–{result.away_score})",
         f"*Model confidence:* {result.confidence:.0%} {_confidence_bar(result.confidence)}",
         "",
-        "I’m holding back because this match does not clear precision mode:",
+        "⚠️ Treat this as a lean, not a strong pick. It misses one or more reliability checks:",
         f"• Needs ≥{min_models} of 4 models agreeing",
         f"• Needs ≥{min_confidence:.0%} ensemble confidence",
         "",
         f"*Why it leans this way:*\n{result.reasoning}",
         "",
-        "Use `/simulate` for tournament odds or try a match with a clearer favourite.",
+        "Use `/match` for the full dossier or `/simulate` for tournament odds.",
     ]
 
     if result.low_consensus:

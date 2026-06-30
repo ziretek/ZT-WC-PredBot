@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 ENSEMBLE_WEIGHTS_FILE = os.path.join(Config.DATA_DIR, "ensemble_weights.json")
 CALIBRATION_FILE = os.path.join(Config.DATA_DIR, "calibration.json")
 
-# Precision mode: trade coverage for high accuracy
-MIN_CONFIDENCE_FOR_PREDICTION = 0.80
+# A 55% ensemble edge is meaningful in a three-way football market. Higher
+# thresholds made even unanimous model votes appear as refusals.
+MIN_CONFIDENCE_FOR_PREDICTION = 0.55
 MIN_MODELS_AGREEING = 3
 MAX_CONFIDENCE = 0.92
 

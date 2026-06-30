@@ -53,7 +53,12 @@ async def match_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     away_rating = engine.elo.get_rating(away)
 
     if prediction.abstained:
-        verdict = f"🤷 Too close to call confidently."
+        verdict = (
+            f"• Lean: *{prediction.winner}*\n"
+            f"• Score: {prediction.home_score}–{prediction.away_score}\n"
+            f"• Confidence: {prediction.confidence:.0%}\n"
+            "• Status: ⚠️ Low-confidence prediction"
+        )
     else:
         verdict = (
             f"• Winner: *{prediction.winner}*\n"
@@ -76,8 +81,7 @@ async def match_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"*AI Verdict:*\n{verdict}\n"
     )
 
-    if not prediction.abstained:
-        msg += f"\n*Analysis:*\n{prediction.reasoning}"
+    msg += f"\n*Analysis:*\n{prediction.reasoning}"
 
     msg += f"\n\nUse `/value {home} vs {away}` to compare against market odds."
     await update.message.reply_markdown(msg)

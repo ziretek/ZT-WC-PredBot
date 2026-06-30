@@ -7,12 +7,16 @@ from telegram.ext import (
     ConversationHandler, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 )
 
-from wcbot.agents.prediction_engine import PredictionEngineAgent
+from wcbot.agents.prediction_engine import (
+    PredictionEngineAgent,
+    MIN_CONFIDENCE_FOR_PREDICTION,
+    MIN_MODELS_AGREEING,
+)
 from wcbot.agents.state_manager import StateManagerAgent
 from wcbot.agents.data_ingestion import DataIngestionAgent
 from wcbot.handlers.tournament import is_round_of_32_request
 from wcbot.models.prediction import Prediction
-from wcbot.utils.formatting import format_prediction
+from wcbot.utils.formatting import format_prediction, format_tentative_prediction
 from wcbot.utils.teams import normalize_team_name, unknown_team_message
 from wcbot.data.teams import WORLD_CUP_TEAMS_2026, TEAM_CONTINENTS, QUALIFIED_COUNT
 
@@ -279,10 +283,18 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
 
     if result.abstained:
         await sent.edit_text(
-            f"🤷 *{home} vs {away}* — too close to call confidently.\n\n"
-            f"I need ≥3 of 4 models agreeing at ≥80% confidence to issue a prediction. "
-            f"Try a match with a clearer favourite."
+            format_tentative_prediction(
+                result,
+                home,
+                away,
+                MIN_MODELS_AGREEING,
+                MIN_CONFIDENCE_FOR_PREDICTION,
+            ),
+            parse_mode="Markdown",
         )
+        context.user_data["last_home"] = home
+        context.user_data["last_away"] = away
+        context.user_data["last_prediction"] = result
         return ASK_FOLLOWUP
 
     pred = Prediction(
@@ -299,7 +311,7 @@ async def handle_predict_request(update: Update, context: ContextTypes.DEFAULT_T
     )
     await state.save_prediction(update.effective_user.id, pred.match_id, pred)
 
-    await sent.edit_text(format_prediction(result, home, away))
+    await sent.edit_text(format_prediction(result, home, away), parse_mode="Markdown")
 
     context.user_data["last_home"] = home
     context.user_data["last_away"] = away

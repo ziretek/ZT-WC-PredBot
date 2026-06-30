@@ -5,7 +5,7 @@ from wcbot.utils.formatting import format_tentative_prediction
 
 
 class FormattingTests(unittest.TestCase):
-    def test_tentative_prediction_includes_lean_and_thresholds(self):
+    def test_tentative_prediction_includes_pick_and_thresholds(self):
         result = PredictionResult(
             winner="Brazil",
             home_score=2,
@@ -19,11 +19,11 @@ class FormattingTests(unittest.TestCase):
             abstained=True,
         )
 
-        text = format_tentative_prediction(result, "Brazil", "Argentina", 3, 0.80)
+        text = format_tentative_prediction(result, "Brazil", "Argentina", 3, 0.55)
 
-        self.assertIn("Tentative lean", text)
+        self.assertIn("Prediction (low confidence)", text)
         self.assertIn("Brazil (2–1)", text)
-        self.assertIn("80%", text)
+        self.assertIn("55%", text)
         self.assertIn("low", text.lower())
 
 
