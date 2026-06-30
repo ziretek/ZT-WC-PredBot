@@ -1,7 +1,7 @@
 import logging
 import os
 
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram import BotCommand
 
 from wcbot.config import Config
@@ -33,6 +33,7 @@ from wcbot.handlers import (
     winner_handler,
     tournament_handler,
     get_chat_conversation_handler,
+    handle_message,
     cancel_global,
 )
 
@@ -138,6 +139,9 @@ def build_app() -> Application:
     app.add_handler(CommandHandler("value", value_handler))
     app.add_handler(CommandHandler("injuries", injuries_handler))
     app.add_handler(get_chat_conversation_handler())
+    # Conversation state is intentionally in-memory. This fallback keeps plain
+    # match requests working after a Render restart clears an active /chat.
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CommandHandler("cancel", cancel_global))
     app.add_error_handler(error_handler)
 
