@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import logging
 from datetime import datetime
@@ -326,6 +327,19 @@ class PredictionEngineAgent:
         self._calibration["total"] = self._calibration.get("total", 0) + 1
         if was_correct:
             self._calibration["correct"] = self._calibration.get("correct", 0) + 1
+        total = self._calibration["total"]
+
+        # Running mean so we don't need to persist every (confidence, outcome)
+        # pair to compute Brier score / log loss across restarts.
+        outcome = 1.0 if was_correct else 0.0
+        p = min(max(confidence, 1e-6), 1 - 1e-6)
+        brier_term = (p - outcome) ** 2
+        log_loss_term = -(outcome * math.log(p) + (1 - outcome) * math.log(1 - p))
+
+        prev_brier = self._calibration.get("brier", 0.0)
+        prev_log_loss = self._calibration.get("log_loss", 0.0)
+        self._calibration["brier"] = prev_brier + (brier_term - prev_brier) / total
+        self._calibration["log_loss"] = prev_log_loss + (log_loss_term - prev_log_loss) / total
 
         band = round(confidence * 10) * 10
         band_key = f"{band}-{band+10}%"

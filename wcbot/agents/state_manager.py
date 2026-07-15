@@ -63,6 +63,9 @@ class StateManagerAgent:
         self._persist_user(user)
         self._persist_prediction(prediction)
 
+    async def get_prediction(self, prediction_id: str) -> Optional[Prediction]:
+        return self._predictions.get(prediction_id)
+
     async def get_prediction_history(self, user_id: int, limit: int = 50) -> list:
         predictions = [
             p for p in self._predictions.values()
@@ -76,6 +79,11 @@ class StateManagerAgent:
                              prediction_engine=None):
         for pred in self._predictions.values():
             if pred.match_id != match_id:
+                continue
+            if pred.actual_home_score == home_score and pred.actual_away_score == away_score:
+                # Already resolved with this exact result — skip so a
+                # redelivered "match finished" event can't double-count
+                # points or calibration feedback.
                 continue
 
             old_points = pred.points_awarded or 0

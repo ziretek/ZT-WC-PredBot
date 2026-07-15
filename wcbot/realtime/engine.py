@@ -88,11 +88,18 @@ class RealtimeEngine:
                     }
 
         elif event_type == "match.finished":
-            logger.info(f"Full time: {event['home']} {event.get('home_score', 0)}-{event.get('away_score', 0)} {event['away']}")
+            home_score = event.get("home_score", 0)
+            away_score = event.get("away_score", 0)
+            logger.info(f"Full time: {event['home']} {home_score}-{away_score} {event['away']}")
             if self._prediction_engine and self._state_manager:
-                self._prediction_engine.resolve_match(
-                    event["home"], event["away"],
-                    event.get("home_score", 0), event.get("away_score", 0),
+                # Saved predictions key on the "home-away" slug (see
+                # handlers/predict.py, handlers/chat.py), not the tracker's
+                # provider match_id, so resolve on that same slug.
+                match_id = f"{event['home'].lower()}-{event['away'].lower()}"
+                await self._state_manager.resolve_match(
+                    match_id, home_score, away_score,
+                    home_team=event["home"], away_team=event["away"],
+                    prediction_engine=self._prediction_engine,
                 )
 
         elif event_type == "lineup.confirmed":

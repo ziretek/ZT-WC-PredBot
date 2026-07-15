@@ -93,7 +93,7 @@ Realtime behavior:
 - `/track` registers a match for live score, odds, and lineup monitoring.
 - `/subscribe` registers a user for team alerts and persists the subscription in SQLite.
 - Score changes can trigger a fresh prediction when confidence is above 60%.
-- Full-time events update Elo ratings and Poisson parameters.
+- Full-time events resolve saved predictions (points, accuracy, calibration feedback) and update Elo ratings and Poisson parameters. Redelivery of the same final score is a no-op.
 
 ## API Keys And Environment
 
@@ -149,7 +149,7 @@ Without a persistent disk, SQLite state and saved model artifacts can be lost on
 - Official group tables, stage labels, lineups and World Cup injury data are not included in the configured provider subscriptions; the bot reports this rather than inventing data.
 - The Odds API recent-score endpoint provides a rolling three-day result window, so a persistent Render disk is important for idempotent model updates.
 - Fixture, score and market freshness depends on The Odds API availability and rate limits.
-- Calibration metrics start at zero and only become meaningful after resolved predictions are logged.
+- Calibration metrics (accuracy, Brier score, log loss, by-band breakdown) start at zero and only become meaningful once World Cup matches you've predicted are resolved live or via `/feedback`.
 - The feature-weighted model is heuristic; it is not currently trained with a real gradient boosting library.
 - There is no registered `/lineups` command yet.
 - The automated test suite is still small and should be expanded before larger refactors.
@@ -162,8 +162,7 @@ Without a persistent disk, SQLite state and saved model artifacts can be lost on
 4. Add an official standings/bracket provider with stage labels.
 5. Add real leaderboard timeframes for matchday, group stage, knockout stage, and all-time views.
 6. Register a `/lineups` command or remove lineup references from user-facing help.
-7. Improve calibration with proper Brier score/log loss updates.
-8. Add admin tools for resolving matches, inspecting state, and exporting predictions.
+7. Add admin tools for resolving matches, inspecting state, and exporting predictions.
 
 ## Local Run
 
