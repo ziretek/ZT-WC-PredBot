@@ -1,5 +1,7 @@
+import hashlib
 import logging
 import os
+import secrets
 
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from telegram import BotCommand
@@ -43,6 +45,9 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     level=getattr(logging, Config.LOG_LEVEL),
 )
+# httpx logs full request URLs at INFO, and every Telegram API URL embeds the
+# bot token — without this cap the token lands in hosted log storage.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -167,6 +172,17 @@ async def error_handler(update, context):
         )
 
 
+def webhook_credentials(token: str, configured_secret: str = "") -> tuple:
+    # The URL path only needs to be unguessable, so a digest keeps the raw
+    # token out of inbound request URLs and any edge/access logs. The secret
+    # must NOT be derivable from the token (a URL leak would defeat it), so
+    # it is either operator-configured or random per boot — Telegram re-learns
+    # it on every startup via set_webhook.
+    url_path = hashlib.sha256(token.encode()).hexdigest()
+    secret_token = configured_secret or secrets.token_hex(32)
+    return url_path, secret_token
+
+
 def main():
     app = build_app()
 
@@ -177,13 +193,16 @@ def main():
         logger.info(f"Detected Render: {webhook_url}")
 
     if webhook_url:
-        full_webhook = f"{webhook_url}/{Config.TELEGRAM_TOKEN}"
+        url_path, secret_token = webhook_credentials(
+            Config.TELEGRAM_TOKEN, Config.WEBHOOK_SECRET_TOKEN
+        )
         logger.info(f"Webhook mode on port {Config.PORT}")
         app.run_webhook(
             listen="0.0.0.0",
             port=int(os.getenv("PORT", Config.PORT)),
-            url_path=Config.TELEGRAM_TOKEN,
-            webhook_url=full_webhook,
+            url_path=url_path,
+            webhook_url=f"{webhook_url}/{url_path}",
+            secret_token=secret_token,
         )
     else:
         logger.info("Polling mode")

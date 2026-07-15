@@ -1,4 +1,7 @@
 python-telegram-bot[webhooks]==20.8
 pydantic==2.5.3
 httpx==0.26.0
-python-dotenv==1.0.0
+# 1.2.2 fixes PYSEC-2026-2270 but needs Python >=3.10 (Docker runs 3.11);
+# 1.2.1 keeps local Python 3.9 venvs installable.
+python-dotenv==1.2.2; python_version >= "3.10"
+python-dotenv==1.2.1; python_version < "3.10"

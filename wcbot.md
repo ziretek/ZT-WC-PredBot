@@ -109,6 +109,7 @@ Optional:
 - `OPENAI_API_URL` - Chat completions endpoint. Defaults to `https://api.deepseek.com/v1/chat/completions`.
 - `LLM_MODEL` - LLM model name. Defaults to `deepseek-chat`.
 - `WEBHOOK_URL` - Public Render/app URL for Telegram webhook mode.
+- `WEBHOOK_SECRET_TOKEN` - Optional secret Telegram echoes back on webhook calls so forged updates are rejected. A random per-boot secret is generated when unset. The webhook URL path is a digest of the bot token, so the raw token never appears in request URLs or logs.
 - `DATA_DIR` - Directory for model artifacts. Defaults to `./data` locally and `/data` in the Docker image.
 - `STATE_DB_PATH` - Optional SQLite database path. Defaults to `DATA_DIR/state.db`.
 - `LOG_LEVEL` - Python logging level. Defaults to `INFO`.

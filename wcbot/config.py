@@ -10,6 +10,9 @@ class Config:
     SPORTS_API_KEY: str = os.getenv("SPORTS_API_KEY", "")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     WEBHOOK_URL: str = os.getenv("WEBHOOK_URL", "")
+    # Telegram allows 1-256 chars of [A-Za-z0-9_-]. Optional: a random
+    # per-boot secret is generated when unset.
+    WEBHOOK_SECRET_TOKEN: str = os.getenv("WEBHOOK_SECRET_TOKEN", "")
     PORT: int = int(os.getenv("PORT", os.getenv("PORT", "8443")))
     DATA_DIR: str = os.getenv("DATA_DIR", "./data")
     STATE_DB_PATH: str = os.getenv("STATE_DB_PATH", os.path.join(DATA_DIR, "state.db"))
